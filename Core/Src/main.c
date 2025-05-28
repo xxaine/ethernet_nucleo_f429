@@ -21,10 +21,15 @@
 #include "cmsis_os.h"
 #include "lwip.h"
 
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "Modbus.h"
 #include "ModbusRegisters.h"
+#include "FreeRTOS.h"
+#include "task.h"
+#include "semphr.h"
+#include "timestamp.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -62,9 +67,22 @@ const osThreadAttr_t myTask02_attributes = {
   .stack_size = 1024 * 4,
   .priority = (osPriority_t) osPriorityAboveNormal,
 };
+/* Definitions for sensorTask */
+osThreadId_t sensorTaskHandle;
+const osThreadAttr_t sensorTask_attributes = {
+  .name = "sensorTask",
+  .stack_size = 1024 * 4,
+  .priority = (osPriority_t) osPriorityHigh,
+};
+/* Definitions for pulseSemaphore */
+osSemaphoreId_t pulseSemaphoreHandle;
+const osSemaphoreAttr_t pulseSemaphore_attributes = {
+  .name = "pulseSemaphore"
+};
 /* USER CODE BEGIN PV */
 modbusHandler_t ModbusH;
 uint16_t ModbusDATA[16];
+extern osSemaphoreId_t pulseSemaphore;  // Объявляем как внешнюю переменную
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -75,6 +93,7 @@ static void MX_TIM4_Init(void);
 static void MX_TIM2_Init(void);
 void StartDefaultTask(void *argument);
 void StartTask02(void *argument);
+void StartTask03(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -144,8 +163,16 @@ int main(void)
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
 
+  /* Create the semaphores(s) */
+  /* creation of pulseSemaphore */
+  pulseSemaphoreHandle = osSemaphoreNew(2, 0, &pulseSemaphore_attributes);
+
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
+  //const osSemaphoreAttr_t pulseSemaphore_attributes = {
+  //  .name = "pulseSemaphore"
+ // };
+ // pulseSemaphore = osSemaphoreNew(1, 0, &pulseSemaphore_attributes);
   /* USER CODE END RTOS_SEMAPHORES */
 
   /* USER CODE BEGIN RTOS_TIMERS */
@@ -163,8 +190,18 @@ int main(void)
   /* creation of myTask02 */
   myTask02Handle = osThreadNew(StartTask02, NULL, &myTask02_attributes);
 
+  /* creation of sensorTask */
+  sensorTaskHandle = osThreadNew(StartTask03, NULL, &sensorTask_attributes);
+
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+    /* creation of sensorTask */
+ // const osThreadAttr_t sensorTask_attributes = {
+  //  .name = "sensorTask",
+  //  .stack_size = 128 * 4,
+  //  .priority = (osPriority_t) osPriorityHigh,
+  //};
+  //osThreadNew(StartSensorTask, NULL, &sensorTask_attributes);
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
@@ -258,9 +295,9 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 0;
+  htim2.Init.Prescaler = 83;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 4294967295;
+  htim2.Init.Period = 65535;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -431,8 +468,8 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin : PA15 */
   GPIO_InitStruct.Pin = GPIO_PIN_15;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
@@ -457,6 +494,16 @@ void print_ip_address(void) {
          ip4_addr2(&ip_addr),
          ip4_addr3(&ip_addr),
          ip4_addr4(&ip_addr));
+}
+
+// Обработчик прерывания для датчика
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+    if (GPIO_Pin == GPIO_PIN_15) {
+        // Даем семафор для генерации импульса
+        xSemaphoreGiveFromISR(pulseSemaphore, &xHigherPriorityTaskWoken);
+        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+    }
 }
 /* USER CODE END 4 */
 
@@ -496,6 +543,24 @@ void StartTask02(void *argument)
     osDelay(1);
   }
   /* USER CODE END StartTask02 */
+}
+
+/* USER CODE BEGIN Header_StartTask03 */
+/**
+* @brief Function implementing the sensorTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_StartTask03 */
+void StartTask03(void *argument)
+{
+  /* USER CODE BEGIN StartTask03 */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END StartTask03 */
 }
 
 /**

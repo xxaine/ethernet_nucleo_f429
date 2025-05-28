@@ -51,9 +51,12 @@ void Sensor_Init(void) {
     
     // Настройка PA15 как вход с подтяжкой
     GPIO_InitStruct.Pin = GPIO_PIN_15;
-    GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING; // восходящий фронт
-    //GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING; // падающий фронт
-    //GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING; // Обработка обоих фронтов
+    // Выбор фронта в зависимости от значения регистра
+    if (holdingRegisters[SP_Front_Type - 2000] == 0) {
+        GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING; // восходящий фронт
+    } else {
+        GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING; // падающий фронт
+    }
     GPIO_InitStruct.Pull = GPIO_PULLUP;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
@@ -70,25 +73,36 @@ static uint32_t round_to_step(uint32_t value, uint32_t step) {
 
 // Функция проверки и корректировки параметров
 static void validate_pulse_params(PulseParams_t* params) {
+    // Получаем значения из регистров Modbus
+    uint32_t delay = holdingRegisters[SP_Delay_Before - 2000] * 100; // Конвертируем в микросекунды
+    uint32_t duration = holdingRegisters[SP_Pulse_Lenght - 2000] * 10; // Конвертируем в микросекунды
+    
     // Проверка и округление задержки
-    if (params->delay_us > MAX_DELAY_US) {
-        params->delay_us = MAX_DELAY_US;
+    if (delay > MAX_DELAY_US) {
+        delay = MAX_DELAY_US;
     }
-    params->delay_us = round_to_step(params->delay_us, DELAY_STEP_US);
+    params->delay_us = round_to_step(delay, DELAY_STEP_US);
     
     // Проверка и округление длительности
-    if (params->duration_us < MIN_DURATION_US) {
-        params->duration_us = MIN_DURATION_US;
-    } else if (params->duration_us > MAX_DURATION_US) {
-        params->duration_us = MAX_DURATION_US;
+    if (duration < MIN_DURATION_US) {
+        duration = MIN_DURATION_US;
+    } else if (duration > MAX_DURATION_US) {
+        duration = MAX_DURATION_US;
     }
-    params->duration_us = round_to_step(params->duration_us, DURATION_STEP_US);
+    params->duration_us = round_to_step(duration, DURATION_STEP_US);
+    
+    // Обновляем регистры обратной связи
+    inputRegisters[FBK_Delay_Before - 1000] = params->delay_us / 100;
+    inputRegisters[FBK_Pulse_Lenght - 1000] = params->duration_us / 10;
 }
 
 // Неблокирующая генерация импульса
 void GeneratePulse(void) {
     // Проверка и корректировка параметров с учетом шага
     validate_pulse_params(&pulseParams);
+
+    // Устанавливаем флаг активного импульса
+    inputRegisters[FBK_Pulse_On - 1000] = 1;
 
     // Генерация импульса с высокой точностью
     if (pulseParams.delay_us == 0) {
@@ -109,6 +123,9 @@ void GeneratePulse(void) {
         holdingRegisters[SP_Pos_Count - 2000]++;
     }
     inputRegisters[FBK_Pulse_Count - 1000] = holdingRegisters[SP_Pos_Count - 2000];
+    
+    // Сбрасываем флаг активного импульса
+    inputRegisters[FBK_Pulse_On - 1000] = 0;
 }
 
 // Задача обработки датчика
@@ -116,14 +133,28 @@ void SensorTask(void *argument) {
     (void)argument;
     TIM2_Init_Delay();
     Sensor_Init();
-    pulseParams.delay_us = 1000;
-    pulseParams.duration_us = 21000;
-    holdingRegisters[SP_Front_Type - 2000] = 0;
+    
+    // Инициализация значений по умолчанию
+    holdingRegisters[SP_Delay_Before - 2000] = 0;     // Задержка 0 мс
+    holdingRegisters[SP_Pulse_Lenght - 2000] = 2000;  // Длительность 20 мс
+    holdingRegisters[SP_Front_Type - 2000] = 0;       // Передний фронт
+    
+    // Обновляем регистры обратной связи
+    inputRegisters[FBK_Delay_Before - 1000] = holdingRegisters[SP_Delay_Before - 2000];
+    inputRegisters[FBK_Pulse_Lenght - 1000] = holdingRegisters[SP_Pulse_Lenght - 2000];
+    inputRegisters[FBK_Front_Type - 1000] = holdingRegisters[SP_Front_Type - 2000];
+    
+    const TickType_t xDelay = pdMS_TO_TICKS(10); // 10 мс задержка между проверками
+    
     for (;;) {
-        size_t watermark = uxTaskGetStackHighWaterMark(NULL);
-        if (xSemaphoreTake(pulseSemaphore, portMAX_DELAY) == pdTRUE) {
+        // Проверяем семафор с таймаутом
+        if (xSemaphoreTake(pulseSemaphore, xDelay) == pdTRUE) {
             GeneratePulse();
-            inputRegisters[FBK_Pulse_On - 1000] = 0;
         }
+        
+        // Обновляем регистры обратной связи
+        inputRegisters[FBK_Delay_Before - 1000] = holdingRegisters[SP_Delay_Before - 2000];
+        inputRegisters[FBK_Pulse_Lenght - 1000] = holdingRegisters[SP_Pulse_Lenght - 2000];
+        inputRegisters[FBK_Front_Type - 1000] = holdingRegisters[SP_Front_Type - 2000];
     }
 }

@@ -2,10 +2,10 @@
 #define __TIMESTAMP_H
 
 #include "main.h"
-#include "cmsis_os2.h"
-
-// Объявления внешних переменных
-extern TIM_HandleTypeDef htim2;
+#include "FreeRTOS.h"
+#include "task.h"
+#include "semphr.h"
+#include "cmsis_os.h"
 
 // Структура для хранения параметров импульса
 typedef struct {
@@ -20,6 +20,7 @@ void GeneratePulse(void);
 void SensorTask(void *argument);
 
 // Объявления внешних переменных
+extern TIM_HandleTypeDef htim2;
 extern osSemaphoreId_t pulseSemaphore;
 extern PulseParams_t pulseParams;
 
