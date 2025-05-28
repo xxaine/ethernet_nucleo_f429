@@ -65,14 +65,14 @@ osThreadId_t myTask02Handle;
 const osThreadAttr_t myTask02_attributes = {
   .name = "myTask02",
   .stack_size = 1024 * 4,
-  .priority = (osPriority_t) osPriorityAboveNormal,
+  .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for sensorTask */
 osThreadId_t sensorTaskHandle;
 const osThreadAttr_t sensorTask_attributes = {
   .name = "sensorTask",
   .stack_size = 1024 * 4,
-  .priority = (osPriority_t) osPriorityHigh,
+  .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for pulseSemaphore */
 osSemaphoreId_t pulseSemaphoreHandle;
@@ -83,6 +83,7 @@ const osSemaphoreAttr_t pulseSemaphore_attributes = {
 modbusHandler_t ModbusH;
 uint16_t ModbusDATA[16];
 extern osSemaphoreId_t pulseSemaphore;  // Объявляем как внешнюю переменную
+volatile uint8_t pulseRequested = 0;  // Флаг для запроса генерации импульса
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -195,14 +196,7 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
-    /* creation of sensorTask */
- // const osThreadAttr_t sensorTask_attributes = {
-  //  .name = "sensorTask",
-  //  .stack_size = 128 * 4,
-  //  .priority = (osPriority_t) osPriorityHigh,
-  //};
-  //osThreadNew(StartSensorTask, NULL, &sensorTask_attributes);
-  /* USER CODE END RTOS_THREADS */
+     /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
   /* add events, ... */
@@ -498,11 +492,8 @@ void print_ip_address(void) {
 
 // Обработчик прерывания для датчика
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
-    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     if (GPIO_Pin == GPIO_PIN_15) {
-        // Даем семафор для генерации импульса
-        xSemaphoreGiveFromISR(pulseSemaphore, &xHigherPriorityTaskWoken);
-        portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+        pulseRequested = 1;  // Устанавливаем флаг запроса импульса
     }
 }
 /* USER CODE END 4 */
@@ -555,9 +546,35 @@ void StartTask02(void *argument)
 void StartTask03(void *argument)
 {
   /* USER CODE BEGIN StartTask03 */
+  (void)argument;
+  TIM2_Init_Delay();
+  Sensor_Init();
+  
+  // Инициализация значений по умолчанию
+  holdingRegisters[SP_Delay_Before - 2000] = 0;     // Задержка 0 мс
+  holdingRegisters[SP_Pulse_Lenght - 2000] = 2000;  // Длительность 20 мс
+  holdingRegisters[SP_Front_Type - 2000] = 0;       // Передний фронт
+  
+  // Обновляем регистры обратной связи
+  inputRegisters[FBK_Delay_Before - 1000] = holdingRegisters[SP_Delay_Before - 2000];
+  inputRegisters[FBK_Pulse_Lenght - 1000] = holdingRegisters[SP_Pulse_Lenght - 2000];
+  inputRegisters[FBK_Front_Type - 1000] = holdingRegisters[SP_Front_Type - 2000];
+  
   /* Infinite loop */
   for(;;)
   {
+    // Проверяем флаг запроса импульса
+    if (pulseRequested) {
+        GeneratePulse();
+        pulseRequested = 0;  // Сбрасываем флаг после генерации импульса
+    }
+    
+    // Обновляем регистры обратной связи
+    inputRegisters[FBK_Delay_Before - 1000] = holdingRegisters[SP_Delay_Before - 2000];
+    inputRegisters[FBK_Pulse_Lenght - 1000] = holdingRegisters[SP_Pulse_Lenght - 2000];
+    inputRegisters[FBK_Front_Type - 1000] = holdingRegisters[SP_Front_Type - 2000];
+    
+    // Даем шанс выполниться другим задачам
     osDelay(1);
   }
   /* USER CODE END StartTask03 */

@@ -56,7 +56,7 @@ void Modbus_SetHoldingRegister(HoldingRegisters reg, uint16_t value) {
     if (reg >= 2000 && reg <= 2019) {
         switch(reg) {
             case SP_Power_27_V:
-                holdingRegisters[reg - 2000] = value;
+        holdingRegisters[reg - 2000] = value;
                 HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, value ? GPIO_PIN_RESET : GPIO_PIN_SET);
                 inputRegisters[FBK_Power_27_V - 1000] = value;
                 break;

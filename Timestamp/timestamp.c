@@ -33,7 +33,7 @@ static void delay_us(uint32_t us) {
     if (us == 0) {
         // Для нулевой задержки используем минимальное время
         __HAL_TIM_SET_COUNTER(&htim2, 0);
-        while (__HAL_TIM_GET_COUNTER(&htim2) < 5); // Гарантированная задержка 5 мкс
+        while (__HAL_TIM_GET_COUNTER(&htim2) < MAX_ZERO_DELAY_US); // Гарантированная задержка 5 мкс
         return;
     }
     
