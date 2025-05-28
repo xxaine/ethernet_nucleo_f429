@@ -1,0 +1,12 @@
+{
+    "files.associations": {
+        "main.h": "c",
+        "cstdint": "cpp",
+        "semphr.h": "c",
+        "algorithm": "c",
+        "xiosbase": "c",
+        "xlocale": "c",
+        "xutility": "c",
+        "lwip.h": "c"
+    }
+}

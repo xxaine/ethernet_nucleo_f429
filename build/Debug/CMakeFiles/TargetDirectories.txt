@@ -1,0 +1,8 @@
+C:/Users/chepulskayaos/project/Ethernet_Nucleo/build/Debug/CMakeFiles/Ethernet_Nucleo.dir
+C:/Users/chepulskayaos/project/Ethernet_Nucleo/build/Debug/CMakeFiles/edit_cache.dir
+C:/Users/chepulskayaos/project/Ethernet_Nucleo/build/Debug/CMakeFiles/rebuild_cache.dir
+C:/Users/chepulskayaos/project/Ethernet_Nucleo/build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir
+C:/Users/chepulskayaos/project/Ethernet_Nucleo/build/Debug/cmake/stm32cubemx/CMakeFiles/FreeRTOS.dir
+C:/Users/chepulskayaos/project/Ethernet_Nucleo/build/Debug/cmake/stm32cubemx/CMakeFiles/LwIP.dir
+C:/Users/chepulskayaos/project/Ethernet_Nucleo/build/Debug/cmake/stm32cubemx/CMakeFiles/edit_cache.dir
+C:/Users/chepulskayaos/project/Ethernet_Nucleo/build/Debug/cmake/stm32cubemx/CMakeFiles/rebuild_cache.dir
