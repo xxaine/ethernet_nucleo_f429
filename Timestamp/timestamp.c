@@ -1,11 +1,8 @@
 #include "timestamp.h"
-#include "tim.h"
-#include "gpio.h"
 #include "FreeRTOS.h"
 #include "task.h"
 #include "semphr.h"
 #include "ModbusRegisters.h"
-#include "iwdg.h"
 
 // Константы для точной задержки
 #define DELAY_STEP_US 100     // Шаг задержки 0.1 мс
@@ -112,9 +109,6 @@ void GeneratePulse(void) {
         holdingRegisters[SP_Pos_Count - 2000]++;
     }
     inputRegisters[FBK_Pulse_Count - 1000] = holdingRegisters[SP_Pos_Count - 2000];
-    
-    // Сброс watchdog после критической операции
-    HAL_IWDG_Refresh(&hiwdg);
 }
 
 // Задача обработки датчика
@@ -125,13 +119,11 @@ void SensorTask(void *argument) {
     pulseParams.delay_us = 1000;
     pulseParams.duration_us = 21000;
     holdingRegisters[SP_Front_Type - 2000] = 0;
-    HAL_IWDG_Refresh(&hiwdg);
     for (;;) {
         size_t watermark = uxTaskGetStackHighWaterMark(NULL);
         if (xSemaphoreTake(pulseSemaphore, portMAX_DELAY) == pdTRUE) {
             GeneratePulse();
             inputRegisters[FBK_Pulse_On - 1000] = 0;
-            HAL_IWDG_Refresh(&hiwdg);
         }
     }
 }

@@ -48,17 +48,28 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
+    MODBUS-LIB/Src/Modbus.c
+    MODBUS-LIB/Src/UARTCallback.c
+    modbus_registers/ModbusRegisters.c
+    Timestamp/timestamp.c
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
+    ${CMAKE_SOURCE_DIR}/MODBUS-LIB/Config/
+    ${CMAKE_SOURCE_DIR}/MODBUS-LIB/Inc/
+    ${CMAKE_SOURCE_DIR}/modbus_registers
+    ${CMAKE_SOURCE_DIR}/Core/Inc
+    ${CMAKE_SOURCE_DIR}/Timestamp/
 )
 
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined symbols
 )
+
+target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE ENABLE_TCP)
 
 # Add linked libraries
 target_link_libraries(${CMAKE_PROJECT_NAME}

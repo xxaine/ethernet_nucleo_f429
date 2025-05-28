@@ -11,14 +11,13 @@
 
 #include "ModbusConfig.h"
 #include <inttypes.h>
-#include <stdint.h>
 #include <stdbool.h>
 #include "FreeRTOS.h"
 #include "cmsis_os.h"
 #include "task.h"
 #include "queue.h"
 #include "timers.h"
-#include "stm32f4xx_hal.h"  // Для HAL-типов
+#include "stm32f4xx_hal.h"
 
 
 typedef enum
@@ -66,11 +65,11 @@ typedef enum MB_FC
 
 typedef struct
 {
-    uint8_t uxBuffer[MAX_BUFFER];
-    uint8_t u8start;
-    uint8_t u8end;
-    uint8_t u8available;
-    bool    overflow;
+uint8_t uxBuffer[MAX_BUFFER];
+uint8_t u8start;
+uint8_t u8end;
+uint8_t u8available;
+bool    overflow;
 }modbusRingBuffer_t;
 
 
@@ -254,8 +253,6 @@ extern modbusHandler_t *mHandlers[MAX_M_HANDLERS];
 // Function prototypes
 void ModbusInit(modbusHandler_t * modH);
 void ModbusStart(modbusHandler_t * modH);
-void Modbus_InitSlave(modbusHandler_t *modH);  // Добавляем объявление функции
-void sendTxBuffer(modbusHandler_t *modH);      // Добавляем объявление функции
 
 #if ENABLE_USB_CDC == 1
 void ModbusStartCDC(modbusHandler_t * modH);
@@ -303,14 +300,6 @@ void ModbusEnd(); //!<finish any communication and release serial communication 
 
 */
 
-// Вспомогательные функции
-uint8_t highByte(uint16_t w);
-uint8_t lowByte(uint16_t w);
-uint16_t word(uint8_t h, uint8_t l);
 
-// Объявления функций Modbus
-int8_t process_FC3(modbusHandler_t *modH);
-int8_t process_FC4(modbusHandler_t *modH);
-int8_t process_FC16(modbusHandler_t *modH);
 
 #endif /* THIRD_PARTY_MODBUS_INC_MODBUS_H_ */
