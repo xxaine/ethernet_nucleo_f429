@@ -83,6 +83,24 @@ modbusHandler_t ModbusH;
 uint16_t ModbusDATA[16];
 extern osSemaphoreId_t pulseSemaphore;  // Объявляем как внешнюю переменную
 volatile uint8_t pulseRequested = 0;  // Флаг для запроса генерации импульса
+
+// Локальные переменные для обработки энкодера
+static int32_t lastEncoderPosition = 0;
+static int32_t encoderDirection = 0;  // 1 для CW, -1 для CCW
+static uint32_t lastUpdateTime = 0;
+
+// Константы для обработки энкодера
+#define ENCODER_UPDATE_PERIOD_MS 10  // Период обновления данных энкодера (10 мс)
+#define SPEED_CALCULATION_PERIOD_MS 100  // Период расчета скорости (100 мс)
+#define MAX_ENCODER_SPEED 10000  // Максимальная скорость в RPM
+
+// Флаги для защиты от повторного входа в прерывания
+static volatile uint8_t isProcessingSensorInterrupt = 0;
+static volatile uint8_t isProcessingEncoderInterrupt = 0;
+
+// Определения для Modbus регистров
+#define FBK_Direction 1050  // Регистр для направления вращения
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -497,6 +515,84 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
     if (GPIO_Pin == GPIO_PIN_15) {
         pulseRequested = 1;  // Устанавливаем флаг запроса импульса
     }
+    else if (GPIO_Pin == GPIO_PIN_5)  // Z сигнал энкодера
+    {
+        // Проверяем защиту от повторного входа
+        if (isProcessingEncoderInterrupt) {
+            return;
+        }
+        isProcessingEncoderInterrupt = 1;
+        
+        // Проверяем состояние пина
+        if (HAL_GPIO_ReadPin(GPIOE, GPIO_PIN_5) == GPIO_PIN_SET)
+        {
+            // Сбрасываем позицию энкодера
+            __HAL_TIM_SET_COUNTER(&htim4, 0);
+            encoderPosition = 0;
+            lastEncoderPosition = 0;
+            
+            // Обновляем регистры Modbus
+            holdingRegisters[SP_Pos_Count - 2000] = 0;
+            inputRegisters[FBK_Pulse_Count - 1000] = 0;
+            inputRegisters[FBK_Pos_Count - 1000] = 0;
+            inputRegisters[FBK_Pos_Count_Max - 1000] = 0;
+        }
+        
+        isProcessingEncoderInterrupt = 0;
+    }
+}
+
+void UpdateEncoderData(void)
+{
+    uint32_t currentTime = HAL_GetTick();
+    
+    // Получаем текущее значение счетчика
+    int32_t currentCount = (int32_t)__HAL_TIM_GET_COUNTER(&htim4);
+    
+    // Вычисляем разницу с учетом переполнения
+    int32_t positionDiff;
+    if (currentCount >= lastEncoderPosition) {
+        positionDiff = currentCount - lastEncoderPosition;
+    } else {
+        positionDiff = (0xFFFF - lastEncoderPosition) + currentCount + 1;
+    }
+    
+    // Определяем направление вращения
+    if (positionDiff != 0) {
+        // Используем биты направления из TIM4
+        if ((htim4.Instance->CR1 & TIM_CR1_DIR) == 0) {
+            encoderDirection = 1;  // CW - по часовой стрелке
+        } else {
+            encoderDirection = -1;  // CCW - против часовой стрелки
+        }
+    }
+    
+    // Обновляем позицию с учетом направления
+    encoderPosition += positionDiff * encoderDirection;
+    
+    // Расчет скорости каждые SPEED_CALCULATION_PERIOD_MS
+    if (currentTime - lastUpdateTime >= SPEED_CALCULATION_PERIOD_MS) {
+        // Вычисляем скорость в RPM
+        // Формула: (импульсы * 60 * 1000) / (импульсов_на_оборот * период_в_мс)
+        int32_t pulsesPerPeriod = positionDiff * encoderDirection;
+        encoderSpeed = (pulsesPerPeriod * 60 * 1000) / (encoderPulsesPerRevolution * SPEED_CALCULATION_PERIOD_MS);
+        
+        // Ограничиваем скорость
+        if (encoderSpeed > MAX_ENCODER_SPEED) encoderSpeed = MAX_ENCODER_SPEED;
+        if (encoderSpeed < -MAX_ENCODER_SPEED) encoderSpeed = -MAX_ENCODER_SPEED;
+        
+        // Обновляем регистры Modbus
+        inputRegisters[FBK_Pos_Count - 1000] = (uint16_t)(encoderPosition & 0xFFFF);
+        inputRegisters[FBK_Pos_Count_Max - 1000] = (uint16_t)((encoderPosition >> 16) & 0xFFFF);
+        inputRegisters[FBK_Pos - 1000] = (uint16_t)(encoderSpeed & 0xFFFF);
+        inputRegisters[FBK_Direction - 1000] = (uint16_t)(encoderDirection > 0 ? 1 : 0);
+        
+        lastUpdateTime = currentTime;
+    }
+    
+    // Сохраняем текущее значение для следующего сравнения
+    lastEncoderPosition = currentCount;
+    
 }
 /* USER CODE END 4 */
 
@@ -530,10 +626,24 @@ void StartDefaultTask(void *argument)
 void StartTask02(void *argument)
 {
   /* USER CODE BEGIN StartTask02 */
+  (void)argument;  // Указываем, что параметр намеренно не используется
+  
+  // Инициализация энкодера
+  encoderPosition = 0;
+  encoderSpeed = 0;
+  encoderPulsesPerRevolution = 2500; // Значение по умолчанию
+  
+  // Запускаем таймер энкодера
+  HAL_TIM_Encoder_Start(&htim4, TIM_CHANNEL_ALL);
+  
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    // Обновляем данные энкодера
+    UpdateEncoderData();
+       
+    // Задержка между обновлениями
+    osDelay(ENCODER_UPDATE_PERIOD_MS);
   }
   /* USER CODE END StartTask02 */
 }
