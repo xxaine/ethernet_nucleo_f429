@@ -17,7 +17,6 @@ typedef struct {
 void TIM2_Init_Delay(void);
 void Sensor_Init(void);
 void GeneratePulse(void);
-void SensorTask(void *argument);
 
 // Объявления внешних переменных
 extern TIM_HandleTypeDef htim2;

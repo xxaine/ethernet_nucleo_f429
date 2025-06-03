@@ -20,7 +20,7 @@ void ModbusRegisters_Init(void) {
     holdingRegisters[SP_Delay_Before - 2000] = 0;     // Задержка 0 мс
     holdingRegisters[SP_Pulse_Lenght - 2000] = 20000; // Длительность импульса 20 мс
     holdingRegisters[SP_Front_Type - 2000] = 0;       // Передний фронт
-    holdingRegisters[SP_Power_27_V - 2000] = 0;       // 27V выключен
+    holdingRegisters[SP_Power_27_V - 2000] = 1;       // 27V выключен
     holdingRegisters[SP_Pos_Count_Max - 2000] = encoderPulsesPerRevolution; // 2500 имп/об
     
     // Инициализация input регистров
@@ -56,8 +56,8 @@ void Modbus_SetHoldingRegister(HoldingRegisters reg, uint16_t value) {
     if (reg >= 2000 && reg <= 2019) {
         switch(reg) {
             case SP_Power_27_V:
-        holdingRegisters[reg - 2000] = value;
-                HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, value ? GPIO_PIN_RESET : GPIO_PIN_SET);
+                holdingRegisters[reg - 2000] = value;
+                HAL_GPIO_WritePin(GPIOB, GPIO_PIN_1, value ? GPIO_PIN_SET : GPIO_PIN_RESET);
                 inputRegisters[FBK_Power_27_V - 1000] = value;
                 break;
                 

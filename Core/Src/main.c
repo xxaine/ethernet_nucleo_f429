@@ -21,7 +21,6 @@
 #include "cmsis_os.h"
 #include "lwip.h"
 
-
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "Modbus.h"
@@ -142,6 +141,9 @@ int main(void)
   // Инициализация регистров Modbus
   ModbusRegisters_Init();
   
+  // Явно устанавливаем состояние пина PB1 через Modbus регистр
+  //Modbus_SetHoldingRegister(SP_Power_27_V, 1); - было для теста, план Б, если не будет работать 
+  
   // Инициализация Modbus handler
   ModbusH.uModbusType = MB_SLAVE;  // Режим slave
   ModbusH.u8id = 1;  // ID устройства (адрес slave)
@@ -196,7 +198,7 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
-     /* USER CODE END RTOS_THREADS */
+  /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
   /* add events, ... */
@@ -289,7 +291,7 @@ static void MX_TIM2_Init(void)
 
   /* USER CODE END TIM2_Init 1 */
   htim2.Instance = TIM2;
-  htim2.Init.Prescaler = 83;
+  htim2.Init.Prescaler = 89;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim2.Init.Period = 65535;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;

@@ -6,12 +6,13 @@
 
 // Константы для точной задержки
 #define DELAY_STEP_US 100     // Шаг задержки 0.1 мс
-#define DURATION_STEP_US 10   // Шаг длительности 0.01 мс
+#define DURATION_STEP_US 10   // Шаг длительности 0.01 мс (10 мкс)
 #define MIN_DELAY_US 0        // Минимальная задержка
 #define MAX_DELAY_US 200000   // Максимальная задержка 200 мс
 #define MIN_DURATION_US 18000 // Минимальная длительность импульса 18 мс
 #define MAX_DURATION_US 22000 // Максимальная длительность импульса 22 мс
 #define MAX_ZERO_DELAY_US 5   // Максимальная задержка при нулевом значении
+#define GPIO_SWITCH_TIME_US 2 // Примерное время переключения GPIO
 
 // Глобальные переменные
 osSemaphoreId_t pulseSemaphore = NULL;
@@ -19,11 +20,14 @@ PulseParams_t pulseParams = {
     .delay_us = 0,          // По умолчанию задержка 0
     .duration_us = 20000    // По умолчанию длительность 20 мс
 };
+volatile uint32_t debug_reg_pulse_lenght = 0;
+volatile uint32_t debug_calculated_duration_us = 0;
+volatile uint32_t debug_delay_us_input = 0;
 
 // Инициализация таймера для микросекундных задержек
 void TIM2_Init_Delay(void) {
     // Настройка таймера на максимальную точность
-    __HAL_TIM_SET_PRESCALER(&htim2, 84 - 1);  // Для 1 МГц (84 МГц / 84)
+    __HAL_TIM_SET_PRESCALER(&htim2, 89);  
     __HAL_TIM_SET_AUTORELOAD(&htim2, 0xFFFF);
     HAL_TIM_Base_Start(&htim2);
 }
@@ -33,7 +37,7 @@ static void delay_us(uint32_t us) {
     if (us == 0) {
         // Для нулевой задержки используем минимальное время
         __HAL_TIM_SET_COUNTER(&htim2, 0);
-        while (__HAL_TIM_GET_COUNTER(&htim2) < MAX_ZERO_DELAY_US); // Гарантированная задержка 5 мкс
+        while (__HAL_TIM_GET_COUNTER(&htim2) < 5); // Гарантированная задержка 5 мкс
         return;
     }
     
@@ -74,31 +78,31 @@ static uint32_t round_to_step(uint32_t value, uint32_t step) {
 // Функция проверки и корректировки параметров
 static void validate_pulse_params(PulseParams_t* params) {
     // Получаем значения из регистров Modbus
-    uint32_t delay = holdingRegisters[SP_Delay_Before - 2000] * 100; // Конвертируем в микросекунды
-    uint32_t duration = holdingRegisters[SP_Pulse_Lenght - 2000] * 10; // Конвертируем в микросекунды
-    
-    // Проверка и округление задержки
+    uint32_t delay = holdingRegisters[SP_Delay_Before - 2000] * 100; // Convert from 0.1ms to us
+    uint32_t duration = holdingRegisters[SP_Pulse_Lenght - 2000] * 10; // Convert from 0.01ms to us
+
+    // Проверяем и ограничиваем задержку
     if (delay > MAX_DELAY_US) {
         delay = MAX_DELAY_US;
     }
     params->delay_us = round_to_step(delay, DELAY_STEP_US);
-    
-    // Проверка и округление длительности
+
+    // Проверяем и ограничиваем длительность
     if (duration < MIN_DURATION_US) {
         duration = MIN_DURATION_US;
     } else if (duration > MAX_DURATION_US) {
         duration = MAX_DURATION_US;
     }
     params->duration_us = round_to_step(duration, DURATION_STEP_US);
-    
+
     // Обновляем регистры обратной связи
-    inputRegisters[FBK_Delay_Before - 1000] = params->delay_us / 100;
-    inputRegisters[FBK_Pulse_Lenght - 1000] = params->duration_us / 10;
+    inputRegisters[FBK_Delay_Before - 1000] = params->delay_us / 100; // Convert back to 0.1ms
+    inputRegisters[FBK_Pulse_Lenght - 1000] = params->duration_us / 10; // Convert back to 0.01ms
 }
 
 // Неблокирующая генерация импульса
 void GeneratePulse(void) {
-    // Проверка и корректировка параметров с учетом шага
+    // Проверяем и корректируем параметры
     validate_pulse_params(&pulseParams);
 
     // Устанавливаем флаг активного импульса
@@ -106,24 +110,30 @@ void GeneratePulse(void) {
 
     // Генерация импульса с высокой точностью
     if (pulseParams.delay_us == 0) {
-        // При нулевой задержке используем минимальное время
+        // Для нулевой задержки используем минимальное время
         HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
         delay_us(MAX_ZERO_DELAY_US); // Максимальная задержка 5 мкс
     } else {
-        // При ненулевой задержке используем заданное значение
+        // Для ненулевой задержки используем установленное значение
         delay_us(pulseParams.delay_us);
         HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
     }
-    
+
+    // Отладочная информация
+    debug_reg_pulse_lenght = holdingRegisters[SP_Pulse_Lenght - 2000];
+    debug_calculated_duration_us = pulseParams.duration_us;
+    debug_delay_us_input = pulseParams.duration_us;
+
+    // Генерируем импульс заданной длительности
     delay_us(pulseParams.duration_us);
     HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
 
-    // Обновление счетчика с проверкой переполнения
+    // Обновляем счетчик с проверкой переполнения
     if (holdingRegisters[SP_Pos_Count - 2000] < UINT16_MAX) {
         holdingRegisters[SP_Pos_Count - 2000]++;
     }
     inputRegisters[FBK_Pulse_Count - 1000] = holdingRegisters[SP_Pos_Count - 2000];
-    
+
     // Сбрасываем флаг активного импульса
     inputRegisters[FBK_Pulse_On - 1000] = 0;
 }
@@ -133,28 +143,21 @@ void SensorTask(void *argument) {
     (void)argument;
     TIM2_Init_Delay();
     Sensor_Init();
-    
+
     // Инициализация значений по умолчанию
-    holdingRegisters[SP_Delay_Before - 2000] = 0;     // Задержка 0 мс
-    holdingRegisters[SP_Pulse_Lenght - 2000] = 2000;  // Длительность 20 мс
-    holdingRegisters[SP_Front_Type - 2000] = 0;       // Передний фронт
-    
-    // Обновляем регистры обратной связи
+    // Default duration 20ms = 20000 us. Register value = 20000 us / 10 us/unit = 2000 units.
+    holdingRegisters[SP_Delay_Before - 2000] = 0;     // Задержка 0 мс (0 * 0.1мс/единица)
+    holdingRegisters[SP_Pulse_Lenght - 2000] = 2000;  // Длительность 20 мс (2000 * 0.01мс/единица)
+    holdingRegisters[SP_Front_Type - 2000] = 0;       // Восходящий фронт
+
+    // Update feedback registers
     inputRegisters[FBK_Delay_Before - 1000] = holdingRegisters[SP_Delay_Before - 2000];
     inputRegisters[FBK_Pulse_Lenght - 1000] = holdingRegisters[SP_Pulse_Lenght - 2000];
     inputRegisters[FBK_Front_Type - 1000] = holdingRegisters[SP_Front_Type - 2000];
-    
-    const TickType_t xDelay = pdMS_TO_TICKS(10); // 10 мс задержка между проверками
-    
+
     for (;;) {
-        // Проверяем семафор с таймаутом
-        if (xSemaphoreTake(pulseSemaphore, xDelay) == pdTRUE) {
+        if (xSemaphoreTake(pulseSemaphore, portMAX_DELAY) == pdTRUE) {
             GeneratePulse();
         }
-        
-        // Обновляем регистры обратной связи
-        inputRegisters[FBK_Delay_Before - 1000] = holdingRegisters[SP_Delay_Before - 2000];
-        inputRegisters[FBK_Pulse_Lenght - 1000] = holdingRegisters[SP_Pulse_Lenght - 2000];
-        inputRegisters[FBK_Front_Type - 1000] = holdingRegisters[SP_Front_Type - 2000];
     }
 }
