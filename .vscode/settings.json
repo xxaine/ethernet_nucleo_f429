@@ -8,6 +8,7 @@
         "xlocale": "c",
         "xutility": "c",
         "lwip.h": "c",
-        "type_traits": "c"
+        "type_traits": "c",
+        "modbusregisters.h": "c"
     }
 }

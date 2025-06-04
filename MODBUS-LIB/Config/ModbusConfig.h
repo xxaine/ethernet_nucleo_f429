@@ -32,7 +32,7 @@
 
 #if ENABLE_TCP == 1
 #define NUMBERTCPCONN   4   // Maximum number of simultaneous client connections, it should be equal or less than LWIP configuration
-#define TCPAGINGCYCLES  1000 // Number of times the server will check for a incoming request before closing the connection for inactivity
+#define TCPAGINGCYCLES  10000 // Number of times the server will check for a incoming request before closing the connection for inactivity
 /* Note: the total aging time for a connection is approximately NUMBERTCPCONN*TCPAGINGCYCLES*u16timeOut ticks
 */
 #endif

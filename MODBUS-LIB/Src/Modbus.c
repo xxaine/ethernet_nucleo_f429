@@ -414,115 +414,96 @@ void vTimerCallbackTimeout(TimerHandle_t *pxTimer) {
 bool TCPwaitConnData(modbusHandler_t *modH)
 {
   struct netbuf *inbuf;
-  err_t recv_err, accept_err;
-  char* buf;
-  uint16_t buflen;
-  uint16_t uLength;
-  bool xTCPvalid;
-  xTCPvalid = false;
-  tcpclients_t *clientconn;
+    err_t recv_err, accept_err;
+    char* buf;
+    uint16_t buflen;
+    uint16_t uLength;
+    bool xTCPvalid = false;
+    tcpclients_t *clientconn;
 
-  // Проверяем состояние соединения
- /* if (modH->conn == NULL) {
-    // Если соединение потеряно, пробуем пересоздать
-    modH->conn = netconn_new(NETCONN_TCP);
-    if (modH->conn != NULL) {
-      netconn_bind(modH->conn, NULL, modH->uTcpPort);
-      netconn_listen(modH->conn);
-      netconn_set_recvtimeout(modH->conn, 1);
+    // Проверяем состояние соединения
+    /* select the next connection slot to work with using round-robin */
+    modH->newconnIndex++;
+    if (modH->newconnIndex >= NUMBERTCPCONN) {
+        modH->newconnIndex = 0;
     }
-  }*/
+    clientconn = &modH->newconns[modH->newconnIndex];
 
-  //select the next connection slot to work with using round-robin
-  modH->newconnIndex++;
-  if (modH->newconnIndex >= NUMBERTCPCONN)
-  {
-	  modH->newconnIndex = 0;
-  }
-  clientconn = &modH->newconns[modH->newconnIndex];
+    // NULL means there is a free connection slot, so we can accept an incoming client connection
+    if (clientconn->conn == NULL) {
+        /* accept any incoming connection */
+        accept_err = netconn_accept(modH->conn, &clientconn->conn);
+        if (accept_err != ERR_OK) {
+            // not valid incoming connection at this time
+            ModbusCloseConnNull(modH);
+            return xTCPvalid;
+        }
+        else {
+            clientconn->aging = 0; // reset aging counter for new connection
+        }
+    }
 
+    // Set receive timeout (important to make it non-blocking)
+    netconn_set_recvtimeout(clientconn->conn, modH->u16timeOut);
+    recv_err = netconn_recv(clientconn->conn, &inbuf);
 
-  //NULL means there is a free connection slot, so we can accept an incoming client connection
-  if (clientconn->conn == NULL){
-      /* accept any incoming connection */
-	  accept_err = netconn_accept(modH->conn, &clientconn->conn);
-	  if(accept_err != ERR_OK)
-	  {
-		  // not valid incoming connection at this time
-		  //ModbusCloseConn(clientconn->conn);
-		  ModbusCloseConnNull(modH);
-		  return xTCPvalid;
-      }
-	  else
-	  {
-		  clientconn->aging=0;
-	  }
+    // Handle different connection states
+    if (recv_err == ERR_CLSD) { // the connection was closed by client
+        ModbusCloseConnNull(modH);
+        clientconn->aging = 0;
+        return xTCPvalid;
+    }
 
-  }
+    if (recv_err == ERR_TIMEOUT) { // No new data received
+        // continue the aging process
+        clientconn->aging++;
 
-  netconn_set_recvtimeout(clientconn->conn ,  modH->u16timeOut);
-  recv_err = netconn_recv(clientconn->conn, &inbuf);
+        // if the connection is old enough and inactive, close and clean it up
+        if (clientconn->aging >= TCPAGINGCYCLES) {
+            ModbusCloseConnNull(modH);
+            clientconn->aging = 0;
+        }
+        return xTCPvalid;
+    }
 
-  if (recv_err == ERR_CLSD) //the connection was closed
-  {
-	  //Close and clean the connection
-	  //ModbusCloseConn(clientconn->conn);
-	  ModbusCloseConnNull(modH);
+    if (recv_err == ERR_OK) {
+        if (netconn_err(clientconn->conn) == ERR_OK) {
+            /* Read the data from the port */
+            netbuf_data(inbuf, (void**)&buf, &buflen);
+            
+            // Validate minimum frame size for Modbus TCP
+            if (buflen > 11) {
+                // Validate protocol ID (must be 0 for Modbus)
+                if (buf[2] == 0 && buf[3] == 0) {
+                    uLength = (buf[4] << 8) | buf[5]; // get MBAP length
+                    
+                    // Validate length
+                    if (uLength < (MAX_BUFFER - 2) && (uLength + 6) <= buflen) {
+                        // Copy Modbus PDU to buffer (skip MBAP header)
+                        for (int i = 0; i < uLength; i++) {
+                            modH->u8Buffer[i] = buf[i + 6];
+                        }
+                        
+                        // Store transaction ID
+                        modH->u16TransactionID = (buf[0] << 8) | buf[1];
+                        
+                        // Set buffer size (add 2 dummy bytes for CRC compatibility)
+                        modH->u8BufferSize = uLength + 2;
+                        
+                        xTCPvalid = true; // we have valid Modbus data
+                    }
+                }
+            }
+            
+            // Delete the buffer in all cases
+            netbuf_delete(inbuf);
+            
+            // Reset aging counter since we got valid data
+            clientconn->aging = 0;
+        }
+    }
 
-	  clientconn->aging = 0;
-	  return xTCPvalid;
-
-  }
-
-  if (recv_err == ERR_TIMEOUT) //No new data
-   {
- 	  //continue the aging process
-	  modH->newconns[modH->newconnIndex].aging++;
-
-	  // if the connection is old enough and inactive close and clean it up
-	  if (modH->newconns[modH->newconnIndex].aging >= TCPAGINGCYCLES)
-	  {
-		  //ModbusCloseConn(clientconn->conn);
-		  ModbusCloseConnNull(modH);
-		  clientconn->aging = 0;
-	  }
-
- 	  return xTCPvalid;
-
-   }
-
-  if (recv_err == ERR_OK)
-  {
-      if (netconn_err(clientconn->conn) == ERR_OK)
-      {
-    	  /* Read the data from the port, blocking if nothing yet there.
-    	  We assume the request (the part we care about) is in one netbuf */
-   	      netbuf_data(inbuf, (void**)&buf, &buflen);
-		  if (buflen>11) // minimum frame size for modbus TCP
-		  {
-			  if(buf[2] == 0 || buf[3] == 0 ) //validate protocol ID
-			  {
-			  	  uLength = (buf[4]<<8 & 0xff00) | buf[5];
-			  	  if(uLength< (MAX_BUFFER-2)  && (uLength + 6) <= buflen)
-			   	  {
-			          for(int i = 0; i < uLength; i++)
-			          {
-			        	  modH->u8Buffer[i] = buf[i+6];
-			          }
-			          modH->u16TransactionID = (buf[0]<<8 & 0xff00) | buf[1];
-			          modH->u8BufferSize = uLength + 2; //add 2 dummy bytes for CRC
-			          xTCPvalid = true; // we have data for the modbus slave
-
-			      }
-			  }
-
-		  }
-		  netbuf_delete(inbuf); // delete the buffer always
-		  clientconn->aging = 0; //reset the aging counter
-	   }
-   }
-
-  return xTCPvalid;
+    return xTCPvalid;
 
 }
 
@@ -1668,18 +1649,19 @@ int8_t process_FC5(modbusHandler_t *modH) {
 int8_t process_FC6(modbusHandler_t *modH) {
 
 	uint16_t u16add = word(modH->u8Buffer[ADD_HI], modH->u8Buffer[ADD_LO]);
-	uint8_t u8CopyBufferSize;
-	uint16_t u16val = word(modH->u8Buffer[NB_HI], modH->u8Buffer[NB_LO]);
+    uint8_t u8CopyBufferSize;
+    uint16_t u16val = word(modH->u8Buffer[NB_HI], modH->u8Buffer[NB_LO]);
 
-	modH->u16regs[u16add] = u16val;
+    // Замените прямое присваивание на вызов функции
+    Modbus_SetHoldingRegister(u16add, u16val);
 
-	// keep the same header
-	modH->u8BufferSize = RESPONSE_SIZE;
+    // keep the same header
+    modH->u8BufferSize = RESPONSE_SIZE;
 
-	u8CopyBufferSize = modH->u8BufferSize + 2;
-	sendTxBuffer(modH);
+    u8CopyBufferSize = modH->u8BufferSize + 2;
+    sendTxBuffer(modH);
 
-	return u8CopyBufferSize;
+    return u8CopyBufferSize;
 }
 
 /**

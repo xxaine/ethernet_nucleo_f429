@@ -18,7 +18,7 @@ void ModbusRegisters_Init(void) {
     
     // Установка значений по умолчанию
     holdingRegisters[SP_Delay_Before - 2000] = 0;     // Задержка 0 мс
-    holdingRegisters[SP_Pulse_Lenght - 2000] = 20000; // Длительность импульса 20 мс
+    holdingRegisters[SP_Pulse_Lenght - 2000] = 2000; // Длительность импульса 20 мс
     holdingRegisters[SP_Front_Type - 2000] = 0;       // Передний фронт
     holdingRegisters[SP_Power_27_V - 2000] = 1;       // 27V выключен
     holdingRegisters[SP_Pos_Count_Max - 2000] = encoderPulsesPerRevolution; // 2500 имп/об

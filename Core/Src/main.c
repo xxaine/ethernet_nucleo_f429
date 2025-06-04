@@ -601,6 +601,9 @@ void StartDefaultTask(void *argument)
   ModbusH.xTypeHW = TCP_HW;  // TCP hardware
   ModbusH.uTcpPort = 502;   // Стандартный порт Modbus TCP
 
+  // Даем время для инициализации сети
+  osDelay(1000);
+
   //Initialize Modbus library
   ModbusInit(&ModbusH);
   
@@ -610,22 +613,12 @@ void StartDefaultTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    // Проверяем состояние соединения и переподключаемся при необходимости
-    if (ModbusH.i8lastError == ERR_TIME_OUT || ModbusH.i8lastError == ERR_BAD_CRC) {
-      // Закрываем текущее соединение
-      ModbusCloseConnNull(&ModbusH);
-      
-      // Небольшая задержка перед переподключением
-      osDelay(500);  // Увеличиваем задержку до 500 мс
-      
-      // Перезапускаем Modbus
-      ModbusStart(&ModbusH);
-      
-      // Дополнительная задержка после перезапуска
-      osDelay(100);
-    }
-    
-    osDelay(1);
+    // Упростите логику переподключения
+        if (ModbusH.i8lastError == ERR_TIME_OUT) {
+            osDelay(100);
+            ModbusStart(&ModbusH); // Просто перезапускаем
+        }
+        osDelay(10);
   }
   /* USER CODE END 5 */
 }
