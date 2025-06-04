@@ -27,8 +27,13 @@ volatile uint32_t debug_delay_us_input = 0;
 // Инициализация таймера для микросекундных задержек
 void TIM2_Init_Delay(void) {
     // Настройка таймера на максимальную точность
-    __HAL_TIM_SET_PRESCALER(&htim2, 89);  
+    __HAL_TIM_SET_PRESCALER(&htim2, 89);  // 90MHz / 90 = 1MHz (1 мкс на тик)
     __HAL_TIM_SET_AUTORELOAD(&htim2, 0xFFFF);
+    
+    // Устанавливаем максимальный приоритет для таймера
+    HAL_NVIC_SetPriority(TIM2_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(TIM2_IRQn);
+    
     HAL_TIM_Base_Start(&htim2);
 }
 
@@ -65,8 +70,8 @@ void Sensor_Init(void) {
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
     
-    // Установка приоритета прерывания
-    HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
+    // Установка максимального приоритета прерывания
+    HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
     HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 }
 
@@ -145,9 +150,8 @@ void SensorTask(void *argument) {
     Sensor_Init();
 
     // Инициализация значений по умолчанию
-    // Default duration 20ms = 20000 us. Register value = 20000 us / 10 us/unit = 2000 units.
-    holdingRegisters[SP_Delay_Before - 2000] = 0;     // Задержка 0 мс (0 * 0.1мс/единица)
-    holdingRegisters[SP_Pulse_Lenght - 2000] = 2000;  // Длительность 20 мс (2000 * 0.01мс/единица)
+    holdingRegisters[SP_Delay_Before - 2000] = 0;     // Задержка 0 мс
+    holdingRegisters[SP_Pulse_Lenght - 2000] = 2000;  // Длительность 20 мс
     holdingRegisters[SP_Front_Type - 2000] = 0;       // Восходящий фронт
 
     // Update feedback registers
@@ -156,8 +160,8 @@ void SensorTask(void *argument) {
     inputRegisters[FBK_Front_Type - 1000] = holdingRegisters[SP_Front_Type - 2000];
 
     for (;;) {
-        if (xSemaphoreTake(pulseSemaphore, portMAX_DELAY) == pdTRUE) {
-            GeneratePulse();
-        }
+        // Задача теперь только обновляет параметры
+        validate_pulse_params(&pulseParams);
+        osDelay(10); // Обновляем параметры каждые 10 мс
     }
 }

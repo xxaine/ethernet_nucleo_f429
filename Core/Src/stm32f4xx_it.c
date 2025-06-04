@@ -22,6 +22,8 @@
 #include "stm32f4xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "timestamp.h"
+#include "ModbusRegisters.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -210,12 +212,50 @@ void TIM4_IRQHandler(void)
 void EXTI15_10_IRQHandler(void)
 {
   /* USER CODE BEGIN EXTI15_10_IRQn 0 */
-
+  if (__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_15) != RESET)
+  {
+    __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_15);
+    
+    // Прямая обработка прерывания без HAL
+    if (holdingRegisters[SP_Front_Type - 2000] == 0) {
+      // Восходящий фронт
+      if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == GPIO_PIN_SET) {
+        // Немедленная генерация импульса
+        HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
+        
+        // Используем TIM2 для точной задержки
+        __HAL_TIM_SET_COUNTER(&htim2, 0);
+        while (__HAL_TIM_GET_COUNTER(&htim2) < pulseParams.duration_us);
+        
+        HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+        
+        // Обновляем счетчик
+        if (holdingRegisters[SP_Pos_Count - 2000] < UINT16_MAX) {
+          holdingRegisters[SP_Pos_Count - 2000]++;
+        }
+        inputRegisters[FBK_Pulse_Count - 1000] = holdingRegisters[SP_Pos_Count - 2000];
+      }
+    } else {
+      // Падающий фронт
+      if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == GPIO_PIN_RESET) {
+        // Немедленная генерация импульса
+        HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
+        
+        // Используем TIM2 для точной задержки
+        __HAL_TIM_SET_COUNTER(&htim2, 0);
+        while (__HAL_TIM_GET_COUNTER(&htim2) < pulseParams.duration_us);
+        
+        HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
+        
+        // Обновляем счетчик
+        if (holdingRegisters[SP_Pos_Count - 2000] < UINT16_MAX) {
+          holdingRegisters[SP_Pos_Count - 2000]++;
+        }
+        inputRegisters[FBK_Pulse_Count - 1000] = holdingRegisters[SP_Pos_Count - 2000];
+      }
+    }
+  }
   /* USER CODE END EXTI15_10_IRQn 0 */
-  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_15);
-  /* USER CODE BEGIN EXTI15_10_IRQn 1 */
-
-  /* USER CODE END EXTI15_10_IRQn 1 */
 }
 
 /**
