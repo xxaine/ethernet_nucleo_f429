@@ -29,6 +29,10 @@ void ModbusRegisters_Init(void) {
     inputRegisters[FBK_Front_Type - 1000] = holdingRegisters[SP_Front_Type - 2000];
     inputRegisters[FBK_Power_27_V - 1000] = holdingRegisters[SP_Power_27_V - 2000];
     inputRegisters[FBK_Pos_Count_Max - 1000] = holdingRegisters[SP_Pos_Count_Max - 2000];
+    inputRegisters[FBK_Pos_Count - 1000] = 0;
+    inputRegisters[FBK_Pulse_Count - 1000] = 0;
+    inputRegisters[FBK_Pulse_On - 1000] = 0;
+    inputRegisters[FBK_POS_Set - 1000] = 0;
 }
 
 uint16_t Modbus_GetInputRegister(InputRegisters reg) {
@@ -36,17 +40,9 @@ uint16_t Modbus_GetInputRegister(InputRegisters reg) {
         switch(reg) {
             case FBK_Power_27_V:
                 return (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_1) == GPIO_PIN_RESET) ? 1 : 0;
-            case FBK_Delay_Before:
-            case FBK_Pulse_Lenght:
-            case FBK_Front_Type:
-            case FBK_Pos_Count:
-            case FBK_Pos_Count_Max:
-            case FBK_Pulse_Count:
-            case FBK_Pulse_On:
-            case FBK_POS_Set:
-        return inputRegisters[reg - 1000];
             default:
-                return 0; // Для резервных регистров
+                // Для всех остальных регистров просто возвращаем значение из массива
+                return inputRegisters[reg - 1000];
         }
     }
     return 0xFFFF; // Ошибка: неверный адрес
@@ -64,9 +60,9 @@ void Modbus_SetHoldingRegister(HoldingRegisters reg, uint16_t value) {
             case SP_Pos_Count_Max:
                 if (value > 0) {
                     holdingRegisters[reg - 2000] = value;
-                encoderPulsesPerRevolution = value;
-                inputRegisters[FBK_Pos_Count_Max - 1000] = value;
-            }
+                    encoderPulsesPerRevolution = value;
+                    inputRegisters[FBK_Pos_Count_Max - 1000] = value;
+                }
                 break;
                 
             case SP_Delay_Before:

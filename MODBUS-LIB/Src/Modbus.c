@@ -14,6 +14,7 @@
 #include "Modbus.h"
 #include "timers.h"
 #include "semphr.h"
+#include "ModbusRegisters.h"
 
 #if ENABLE_TCP == 1
 #include "api.h"
@@ -420,6 +421,17 @@ bool TCPwaitConnData(modbusHandler_t *modH)
   bool xTCPvalid;
   xTCPvalid = false;
   tcpclients_t *clientconn;
+
+  // Проверяем состояние соединения
+ /* if (modH->conn == NULL) {
+    // Если соединение потеряно, пробуем пересоздать
+    modH->conn = netconn_new(NETCONN_TCP);
+    if (modH->conn != NULL) {
+      netconn_bind(modH->conn, NULL, modH->uTcpPort);
+      netconn_listen(modH->conn);
+      netconn_set_recvtimeout(modH->conn, 1);
+    }
+  }*/
 
   //select the next connection slot to work with using round-robin
   modH->newconnIndex++;
@@ -1229,100 +1241,52 @@ int16_t getRxBuffer(modbusHandler_t *modH) {
  * @ingroup modH Modbus handler
  */
 uint8_t validateRequest(modbusHandler_t *modH) {
-	// check message crc vs calculated crc
+	// Check message CRC vs calculated CRC
+    #if ENABLE_TCP ==1
+    if(modH->xTypeHW != TCP_HW)
+    {
+    #endif
+    uint16_t u16MsgCRC = ((modH->u8Buffer[modH->u8BufferSize - 2] << 8)
+            | modH->u8Buffer[modH->u8BufferSize - 1]);
+    if (calcCRC(modH->u8Buffer, modH->u8BufferSize - 2) != u16MsgCRC) {
+        modH->u16errCnt++;
+        return ERR_BAD_CRC;
+    }
+    #if ENABLE_TCP ==1
+    }
+    #endif
 
-#if ENABLE_TCP ==1
-	    uint16_t u16MsgCRC;
-		    u16MsgCRC= ((modH->u8Buffer[modH->u8BufferSize - 2] << 8)
-		   	         | modH->u8Buffer[modH->u8BufferSize - 1]); // combine the crc Low & High bytes
+    // Check function code support
+    bool isSupported = false;
+    for (uint8_t i = 0; i < sizeof(fctsupported); i++) {
+        if (fctsupported[i] == modH->u8Buffer[FUNC]) {
+            isSupported = 1;
+            break;
+        }
+    }
+    if (!isSupported) {
+        modH->u16errCnt++;
+        return EXC_FUNC_CODE;
+    }
 
-	    if (modH->xTypeHW != TCP_HW)
-	    {
-	    	if ( calcCRC( modH->u8Buffer,  modH->u8BufferSize-2 ) != u16MsgCRC )
-	    	{
-	    		modH->u16errCnt ++;
-	    		return ERR_BAD_CRC;
-	    		}
-	    }
-#else
-	uint16_t u16MsgCRC;
-	u16MsgCRC = ((modH->u8Buffer[modH->u8BufferSize - 2] << 8)
-			| modH->u8Buffer[modH->u8BufferSize - 1]); // combine the crc Low & High bytes
+    // Check address range
+    uint16_t u16AdRegs = word(modH->u8Buffer[ADD_HI], modH->u8Buffer[ADD_LO]);
+    uint16_t u16NRegs = word(modH->u8Buffer[NB_HI], modH->u8Buffer[NB_LO]);
 
-	if (calcCRC(modH->u8Buffer, modH->u8BufferSize - 2) != u16MsgCRC) {
-		modH->u16errCnt++;
-		return ERR_BAD_CRC;
-	}
+    // For Input Registers (Function 04)
+    if (modH->u8Buffer[FUNC] == MB_FC_READ_INPUT_REGISTER) {
+        if (u16AdRegs < 1000 || u16AdRegs + u16NRegs > 1000 + INPUT_REGISTERS_COUNT) {
+            return EXC_ADDR_RANGE;
+        }
+    }
+    // For Holding Registers (Functions 03, 06, 16)
+    else {
+        if (u16AdRegs < 2000 || u16AdRegs + u16NRegs > 2000 + HOLDING_REGISTERS_COUNT) {
+            return EXC_ADDR_RANGE;
+        }
+    }
 
-#endif
-
-	// check fct code
-	bool isSupported = false;
-	for (uint8_t i = 0; i < sizeof(fctsupported); i++) {
-		if (fctsupported[i] == modH->u8Buffer[FUNC]) {
-			isSupported = 1;
-			break;
-		}
-	}
-	if (!isSupported) {
-		modH->u16errCnt++;
-		return EXC_FUNC_CODE;
-	}
-
-	// check start address & nb range
-	uint16_t u16AdRegs = 0;
-	uint16_t u16NRegs = 0;
-
-	//uint8_t u8regs;
-	switch (modH->u8Buffer[FUNC]) {
-	case MB_FC_READ_COILS:
-	case MB_FC_READ_DISCRETE_INPUT:
-	case MB_FC_WRITE_MULTIPLE_COILS:
-		u16AdRegs = word(modH->u8Buffer[ADD_HI], modH->u8Buffer[ADD_LO]) / 16;
-		u16NRegs = word(modH->u8Buffer[NB_HI], modH->u8Buffer[NB_LO]) / 16;
-		if (word(modH->u8Buffer[NB_HI], modH->u8Buffer[NB_LO]) % 16)
-			u16NRegs++; // check for incomplete words
-		// verify address range
-		if ((u16AdRegs + u16NRegs) > modH->u16regsize)
-    return EXC_ADDR_RANGE;
-
-		//verify answer frame size in bytes
-
-		u16NRegs = word(modH->u8Buffer[NB_HI], modH->u8Buffer[NB_LO]) / 8;
-		if (word(modH->u8Buffer[NB_HI], modH->u8Buffer[NB_LO]) % 8)
-			u16NRegs++;
-		u16NRegs = u16NRegs + 5; // adding the header  and CRC ( Slave address + Function code  + number of data bytes to follow + 2-byte CRC )
-		if (u16NRegs > 256)
-			return EXC_REGS_QUANT;
-
-		break;
-	case MB_FC_WRITE_COIL:
-		u16AdRegs = word(modH->u8Buffer[ADD_HI], modH->u8Buffer[ADD_LO]) / 16;
-		if (word(modH->u8Buffer[ADD_HI], modH->u8Buffer[ADD_LO]) % 16)
-			u16AdRegs++;	// check for incomplete words
-		if (u16AdRegs >= modH->u16regsize)
-			return EXC_ADDR_RANGE;
-		break;
-	case MB_FC_WRITE_REGISTER:
-		u16AdRegs = word(modH->u8Buffer[ADD_HI], modH->u8Buffer[ADD_LO]);
-		if (u16AdRegs >= modH->u16regsize)
-			return EXC_ADDR_RANGE;
-		break;
-	case MB_FC_READ_REGISTERS:
-	case MB_FC_READ_INPUT_REGISTER:
-	case MB_FC_WRITE_MULTIPLE_REGISTERS:
-		u16AdRegs = word(modH->u8Buffer[ADD_HI], modH->u8Buffer[ADD_LO]);
-		u16NRegs = word(modH->u8Buffer[NB_HI], modH->u8Buffer[NB_LO]);
-		if ((u16AdRegs + u16NRegs) > modH->u16regsize)
-			return EXC_ADDR_RANGE;
-
-		//verify answer frame size in bytes
-		u16NRegs = u16NRegs * 2 + 5; // adding the header  and CRC
-		if (u16NRegs > 256)
-			return EXC_REGS_QUANT;
-		break;
-	}
-	return 0; // OK, no exception code thrown
+    return 0; // OK, no exception
 
 }
 
@@ -1619,24 +1583,48 @@ int8_t process_FC1(modbusHandler_t *modH) {
  */
 int8_t process_FC3(modbusHandler_t *modH) {
 
-	uint16_t u16StartAdd = word(modH->u8Buffer[ADD_HI], modH->u8Buffer[ADD_LO]);
-	uint8_t u8regsno = word(modH->u8Buffer[NB_HI], modH->u8Buffer[NB_LO]);
-	uint8_t u8CopyBufferSize;
-	uint16_t i;
+	 uint16_t u16StartAdd = word(modH->u8Buffer[ADD_HI], modH->u8Buffer[ADD_LO]);
+    uint8_t u8regsno = word(modH->u8Buffer[NB_HI], modH->u8Buffer[NB_LO]);
+    uint8_t u8CopyBufferSize;
 
-	modH->u8Buffer[2] = u8regsno * 2;
-	modH->u8BufferSize = 3;
+    // For Input Registers (Function 04)
+    if (modH->u8Buffer[FUNC] == MB_FC_READ_INPUT_REGISTER) {
+        if (u16StartAdd < 1000 || u16StartAdd + u8regsno > 1000 + INPUT_REGISTERS_COUNT) {
+            buildException(EXC_ADDR_RANGE, modH);
+            return -1;
+        }
+        u16StartAdd -= 1000; // Adjust address for inputRegisters array
+        modH->u8Buffer[2] = u8regsno * 2;
+        modH->u8BufferSize = 3;
 
-	for (i = u16StartAdd; i < u16StartAdd + u8regsno; i++) {
-		modH->u8Buffer[modH->u8BufferSize] = highByte(modH->u16regs[i]);
-		modH->u8BufferSize++;
-		modH->u8Buffer[modH->u8BufferSize] = lowByte(modH->u16regs[i]);
-		modH->u8BufferSize++;
-	}
-	u8CopyBufferSize = modH->u8BufferSize + 2;
-	sendTxBuffer(modH);
+        for (uint16_t i = 0; i < u8regsno; i++) {
+            modH->u8Buffer[modH->u8BufferSize] = highByte(inputRegisters[u16StartAdd + i]);
+            modH->u8BufferSize++;
+            modH->u8Buffer[modH->u8BufferSize] = lowByte(inputRegisters[u16StartAdd + i]);
+            modH->u8BufferSize++;
+        }
+    }
+    // For Holding Registers (Function 03)
+    else {
+        if (u16StartAdd < 2000 || u16StartAdd + u8regsno > 2000 + HOLDING_REGISTERS_COUNT) {
+            buildException(EXC_ADDR_RANGE, modH);
+            return -1;
+        }
+        u16StartAdd -= 2000; // Adjust address for holdingRegisters array
+        modH->u8Buffer[2] = u8regsno * 2;
+        modH->u8BufferSize = 3;
 
-	return u8CopyBufferSize;
+        for (uint16_t i = 0; i < u8regsno; i++) {
+            modH->u8Buffer[modH->u8BufferSize] = highByte(holdingRegisters[u16StartAdd + i]);
+            modH->u8BufferSize++;
+            modH->u8Buffer[modH->u8BufferSize] = lowByte(holdingRegisters[u16StartAdd + i]);
+            modH->u8BufferSize++;
+        }
+    }
+
+    u8CopyBufferSize = modH->u8BufferSize + 2;
+    sendTxBuffer(modH);
+    return u8CopyBufferSize;
 }
 
 /**
@@ -1769,6 +1757,9 @@ int8_t process_FC16(modbusHandler_t *modH) {
 				modH->u8Buffer[(BYTE_CNT + 2) + i * 2]);
 
 		modH->u16regs[u16StartAdd + i] = temp;
+        
+        // Call Modbus_SetHoldingRegister for each register
+        Modbus_SetHoldingRegister(u16StartAdd + i, temp);
 	}
 	u8CopyBufferSize = modH->u8BufferSize + 2;
 	sendTxBuffer(modH);

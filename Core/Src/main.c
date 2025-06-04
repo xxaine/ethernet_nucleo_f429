@@ -155,26 +155,6 @@ int main(void)
   MX_TIM4_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  /* Modbus TCP initialization */
-  // Инициализация регистров Modbus
-  ModbusRegisters_Init();
-  
-  // Явно устанавливаем состояние пина PB1 через Modbus регистр
-  //Modbus_SetHoldingRegister(SP_Power_27_V, 1); - было для теста, план Б, если не будет работать 
-  
-  // Инициализация Modbus handler
-  ModbusH.uModbusType = MB_SLAVE;  // Режим slave
-  ModbusH.u8id = 1;  // ID устройства (адрес slave)
-  ModbusH.u16timeOut = 1000;  // Таймаут в мс
-  ModbusH.u16regs = holdingRegisters;  // Указатель на holding registers
-  ModbusH.u16regsize = HOLDING_REGISTERS_COUNT;  // Размер holding registers
-  ModbusH.xTypeHW = TCP_HW;  // TCP hardware
-  ModbusH.uTcpPort = 502;   // Стандартный порт Modbus TCP
-
-  //Initialize Modbus library
-  ModbusInit(&ModbusH);
-  //Start capturing traffic on serial Port and initialize counters
-  ModbusStart(&ModbusH);
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -608,9 +588,43 @@ void StartDefaultTask(void *argument)
   /* init code for LWIP */
   MX_LWIP_Init();
   /* USER CODE BEGIN 5 */
+  /* Modbus TCP initialization */
+  // Инициализация регистров Modbus
+  ModbusRegisters_Init();
+  
+  // Инициализация Modbus handler
+  ModbusH.uModbusType = MB_SLAVE;  // Режим slave
+  ModbusH.u8id = 1;  // ID устройства (адрес slave)
+  ModbusH.u16timeOut = 2000;  // Увеличенный таймаут до 2000 мс
+  ModbusH.u16regs = holdingRegisters;  // Указатель на holding registers
+  ModbusH.u16regsize = HOLDING_REGISTERS_COUNT;  // Размер holding registers
+  ModbusH.xTypeHW = TCP_HW;  // TCP hardware
+  ModbusH.uTcpPort = 502;   // Стандартный порт Modbus TCP
+
+  //Initialize Modbus library
+  ModbusInit(&ModbusH);
+  
+  //Start capturing traffic on serial Port and initialize counters
+  ModbusStart(&ModbusH);
+  
   /* Infinite loop */
   for(;;)
   {
+    // Проверяем состояние соединения и переподключаемся при необходимости
+    if (ModbusH.i8lastError == ERR_TIME_OUT || ModbusH.i8lastError == ERR_BAD_CRC) {
+      // Закрываем текущее соединение
+      ModbusCloseConnNull(&ModbusH);
+      
+      // Небольшая задержка перед переподключением
+      osDelay(500);  // Увеличиваем задержку до 500 мс
+      
+      // Перезапускаем Modbus
+      ModbusStart(&ModbusH);
+      
+      // Дополнительная задержка после перезапуска
+      osDelay(100);
+    }
+    
     osDelay(1);
   }
   /* USER CODE END 5 */
