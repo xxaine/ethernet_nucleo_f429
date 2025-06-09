@@ -15,6 +15,9 @@
 #include "timers.h"
 #include "semphr.h"
 #include "ModbusRegisters.h"
+#include "ModbusConfig.h"
+#include "timestamp.h"
+#include <string.h>
 
 #if ENABLE_TCP == 1
 #include "api.h"

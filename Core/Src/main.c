@@ -613,12 +613,30 @@ void StartDefaultTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
-    // Упростите логику переподключения
-        if (ModbusH.i8lastError == ERR_TIME_OUT) {
-            osDelay(100);
-            ModbusStart(&ModbusH); // Просто перезапускаем
+    // Улучшенная логика обработки ошибок
+    if (ModbusH.i8lastError != 0) {
+        // Закрываем все существующие соединения
+        for(int i = 0; i < NUMBERTCPCONN; i++) {
+            if(ModbusH.newconns[i].conn != NULL) {
+                ModbusCloseConn(ModbusH.newconns[i].conn);
+                ModbusH.newconns[i].conn = NULL;
+            }
         }
-        osDelay(10);
+        
+        // Очищаем буферы
+        memset(ModbusH.u8Buffer, 0, MAX_BUFFER);
+        ModbusH.u8BufferSize = 0;
+        
+        // Даем время на освобождение ресурсов
+        osDelay(100);
+        
+        // Перезапускаем Modbus
+        ModbusStart(&ModbusH);
+        
+        // Сбрасываем счетчик ошибок
+        ModbusH.i8lastError = 0;
+    }
+    osDelay(10);
   }
   /* USER CODE END 5 */
 }
