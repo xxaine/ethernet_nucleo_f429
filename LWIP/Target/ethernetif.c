@@ -43,7 +43,7 @@
 #define ETHIF_TX_TIMEOUT (2000U)
 /* USER CODE BEGIN OS_THREAD_STACK_SIZE_WITH_RTOS */
 /* Stack size of the interface thread */
-#define INTERFACE_THREAD_STACK_SIZE ( 350 )
+#define INTERFACE_THREAD_STACK_SIZE ( 1024 )
 /* USER CODE END OS_THREAD_STACK_SIZE_WITH_RTOS */
 /* Network interface name */
 #define IFNAME0 's'
@@ -163,6 +163,8 @@ void HAL_ETH_ErrorCallback(ETH_HandleTypeDef *handlerEth)
   if((HAL_ETH_GetDMAError(handlerEth) & ETH_DMASR_RBUS) == ETH_DMASR_RBUS)
   {
      osSemaphoreRelease(RxPktSemaphore);
+     HAL_ETH_DeInit(handlerEth);
+     HAL_ETH_Init(handlerEth);
   }
 }
 
