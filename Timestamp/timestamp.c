@@ -30,8 +30,8 @@ void TIM2_Init_Delay(void) {
     __HAL_TIM_SET_PRESCALER(&htim2, 89);  // 90MHz / 90 = 1MHz (1 мкс на тик)
     __HAL_TIM_SET_AUTORELOAD(&htim2, 0xFFFF);
     
-    // Устанавливаем максимальный приоритет для таймера
-    HAL_NVIC_SetPriority(TIM2_IRQn, 0, 0);
+    // Устанавливаем более низкий приоритет для таймера
+    HAL_NVIC_SetPriority(TIM2_IRQn, 10, 0);  // Изменяем приоритет с 0 на 5
     HAL_NVIC_EnableIRQ(TIM2_IRQn);
     
     HAL_TIM_Base_Start(&htim2);
@@ -71,7 +71,7 @@ void Sensor_Init(void) {
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
     
     // Установка максимального приоритета прерывания
-    HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+    HAL_NVIC_SetPriority(EXTI15_10_IRQn, 10, 0);
     HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 }
 

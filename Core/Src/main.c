@@ -56,7 +56,7 @@ UART_HandleTypeDef huart3;
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
   .name = "defaultTask",
-  .stack_size = 1024 * 4,
+  .stack_size = 1024 * 6,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for myTask02 */
@@ -467,10 +467,10 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 5, 0);
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 10, 0);
   HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
-  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 10, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
@@ -613,6 +613,9 @@ void StartDefaultTask(void *argument)
   /* Infinite loop */
   for(;;)
   {
+    //if (HAL_ETH_GetState(&heth) != HAL_ETH_STATE_READY) {
+        //MX_LWIP_Init();  // Переинициализация сети
+    //}
     // Улучшенная логика обработки ошибок
     if (ModbusH.i8lastError != 0) {
         // Закрываем все существующие соединения
