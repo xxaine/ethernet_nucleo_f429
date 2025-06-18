@@ -165,6 +165,7 @@ void HAL_ETH_ErrorCallback(ETH_HandleTypeDef *handlerEth)
      osSemaphoreRelease(RxPktSemaphore);
      HAL_ETH_DeInit(handlerEth);
      HAL_ETH_Init(handlerEth);
+     HAL_ETH_Start_IT(handlerEth);
   }
 }
 
