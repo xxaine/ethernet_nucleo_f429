@@ -38,7 +38,7 @@
 			{
 				"command" : 1,
 				"file" : 1,
-				"line" : 213,
+				"line" : 214,
 				"parent" : 2
 			},
 			{
@@ -56,7 +56,7 @@
 			{
 				"command" : 4,
 				"file" : 1,
-				"line" : 207,
+				"line" : 208,
 				"parent" : 2
 			},
 			{
@@ -567,7 +567,8 @@
 				120,
 				121,
 				122,
-				123
+				123,
+				124
 			]
 		}
 	],
@@ -757,6 +758,12 @@
 			"backtrace" : 3,
 			"isGenerated" : true,
 			"path" : "build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_eth.c.obj",
+			"sourceGroupIndex" : 2
+		},
+		{
+			"backtrace" : 3,
+			"isGenerated" : true,
+			"path" : "build/Debug/cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_iwdg.c.obj",
 			"sourceGroupIndex" : 2
 		},
 		{

@@ -2411,7 +2411,16 @@ extern void vApplicationStackOverflowHook (TaskHandle_t xTask, signed char *pcTa
   Dummy implementation of the callback function vApplicationIdleHook().
 */
 #if (configUSE_IDLE_HOOK == 1)
-__WEAK void vApplicationIdleHook (void){}
+__WEAK void vApplicationIdleHook (void){
+  __WFI(); // Разрешаем CPU спать
+    static uint32_t idle_counter = 0;
+    if (++idle_counter % 1000 == 0) {
+        printf("Idle task running\n");
+    }
+    if (xTaskGetSchedulerState() != taskSCHEDULER_RUNNING) {
+    vTaskStartScheduler(); // Попытка перезапуска
+}
+}
 #endif
 
 /**

@@ -187,7 +187,7 @@ extern "C" {
 #endif
 
 #ifndef configUSE_DAEMON_TASK_STARTUP_HOOK
-	#define configUSE_DAEMON_TASK_STARTUP_HOOK 0
+	#define configUSE_DAEMON_TASK_STARTUP_HOOK 1
 #endif
 
 #ifndef configUSE_APPLICATION_TASK_TAG
@@ -395,11 +395,11 @@ hold explicit before calling the code. */
 #endif
 
 #ifndef configCHECK_FOR_STACK_OVERFLOW
-	#define configCHECK_FOR_STACK_OVERFLOW 0
+	#define configCHECK_FOR_STACK_OVERFLOW 2
 #endif
 
 #ifndef configRECORD_STACK_HIGH_ADDRESS
-	#define configRECORD_STACK_HIGH_ADDRESS 0
+	#define configRECORD_STACK_HIGH_ADDRESS 1
 #endif
 
 #ifndef configINCLUDE_FREERTOS_TASK_C_ADDITIONS_H
@@ -735,7 +735,7 @@ hold explicit before calling the code. */
 #endif
 
 #ifndef configUSE_MALLOC_FAILED_HOOK
-	#define configUSE_MALLOC_FAILED_HOOK 0
+	#define configUSE_MALLOC_FAILED_HOOK 1
 #endif
 
 #ifndef portPRIVILEGE_BIT

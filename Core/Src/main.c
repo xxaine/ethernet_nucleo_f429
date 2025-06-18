@@ -47,10 +47,19 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+IWDG_HandleTypeDef hiwdg;
+
 TIM_HandleTypeDef htim2;
 TIM_HandleTypeDef htim4;
 
 UART_HandleTypeDef huart3;
+
+volatile uint32_t debug_last_error = 0;
+volatile uint32_t debug_stack_min = 0xFFFFFFFF;
+volatile uint32_t debug_task_active = 0;
+// Глобальные флаги для отложенной обработки
+volatile uint8_t encoder_z_detected = 0;
+volatile uint32_t encoder_z_timestamp = 0;
 
 /* Definitions for defaultTask */
 osThreadId_t defaultTaskHandle;
@@ -70,7 +79,7 @@ const osThreadAttr_t myTask02_attributes = {
 osThreadId_t sensorTaskHandle;
 const osThreadAttr_t sensorTask_attributes = {
   .name = "sensorTask",
-  .stack_size = 1024 * 4,
+  .stack_size = 1024 * 6,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for pulseSemaphore */
@@ -109,6 +118,7 @@ static void MX_GPIO_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_TIM2_Init(void);
+static void MX_IWDG_Init(void);
 void StartDefaultTask(void *argument);
 void StartTask02(void *argument);
 void StartTask03(void *argument);
@@ -154,6 +164,7 @@ int main(void)
   MX_USART3_UART_Init();
   MX_TIM4_Init();
   MX_TIM2_Init();
+  MX_IWDG_Init();
   /* USER CODE BEGIN 2 */
   /* USER CODE END 2 */
 
@@ -235,8 +246,9 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_BYPASS;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 4;
@@ -268,6 +280,34 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief IWDG Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_IWDG_Init(void)
+{
+
+  /* USER CODE BEGIN IWDG_Init 0 */
+
+  /* USER CODE END IWDG_Init 0 */
+
+  /* USER CODE BEGIN IWDG_Init 1 */
+
+  /* USER CODE END IWDG_Init 1 */
+  hiwdg.Instance = IWDG;
+  hiwdg.Init.Prescaler = IWDG_PRESCALER_32;
+  hiwdg.Init.Reload = 4095;
+  if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN IWDG_Init 2 */
+
+  /* USER CODE END IWDG_Init 2 */
+
 }
 
 /**
@@ -467,10 +507,10 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 10, 0);
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 12, 0);
   HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
-  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 10, 0);
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 12, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
@@ -492,34 +532,20 @@ void print_ip_address(void) {
 
 // Обработчик прерывания для датчика
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+    debug_task_active = 1;  // Метка для отладчика
+    if (uxTaskGetStackHighWaterMark(NULL) < debug_stack_min) {
+        debug_stack_min = uxTaskGetStackHighWaterMark(NULL);
+    }
+
+     // Краткий обработчик: только флаги + барьеры
     if (GPIO_Pin == GPIO_PIN_15) {
-        pulseRequested = 1;  // Устанавливаем флаг запроса импульса
+        pulseRequested = 1;
+    } 
+    else if (GPIO_Pin == GPIO_PIN_5) {
+        encoder_z_detected = 1;
+        encoder_z_timestamp = HAL_GetTick();
     }
-    else if (GPIO_Pin == GPIO_PIN_5)  // Z сигнал энкодера
-    {
-        // Проверяем защиту от повторного входа
-        if (isProcessingEncoderInterrupt) {
-            return;
-        }
-        isProcessingEncoderInterrupt = 1;
-        
-        // Проверяем состояние пина
-        if (HAL_GPIO_ReadPin(GPIOE, GPIO_PIN_5) == GPIO_PIN_SET)
-        {
-            // Сбрасываем позицию энкодера
-            __HAL_TIM_SET_COUNTER(&htim4, 0);
-            encoderPosition = 0;
-            lastEncoderPosition = 0;
-            
-            // Обновляем регистры Modbus
-            holdingRegisters[SP_Pos_Count - 2000] = 0;
-            inputRegisters[FBK_Pulse_Count - 1000] = 0;
-            inputRegisters[FBK_Pos_Count - 1000] = 0;
-            inputRegisters[FBK_Pos_Count_Max - 1000] = 0;
-        }
-        
-        isProcessingEncoderInterrupt = 0;
-    }
+    __DSB(); // Барьер памяти
 }
 
 void UpdateEncoderData(void)
@@ -616,6 +642,19 @@ void StartDefaultTask(void *argument)
     //if (HAL_ETH_GetState(&heth) != HAL_ETH_STATE_READY) {
         //MX_LWIP_Init();  // Переинициализация сети
     //}
+
+ debug_task_active = 2;  // Идентификатор задачи
+    HAL_IWDG_Refresh(&hiwdg);
+
+if (xPortGetFreeHeapSize() < 2048) {
+Error_Handler();
+}
+
+if ((EXTI->PR & GPIO_PIN_15) || (ETH->DMASR & ETH_DMASR_NIS)) {
+        // Прерывания заблокированы!
+        Error_Handler();
+    }
+
     // Улучшенная логика обработки ошибок
     if (ModbusH.i8lastError != 0) {
         // Закрываем все существующие соединения
@@ -667,6 +706,22 @@ void StartTask02(void *argument)
   /* Infinite loop */
   for(;;)
   {
+
+    if (encoder_z_detected) {
+            encoder_z_detected = 0;
+            
+            // Защита от дребезга
+            if (HAL_GetTick() - encoder_z_timestamp < 10) continue;
+            
+            // Атомарные операции
+            uint32_t primask = __get_PRIMASK();
+            __disable_irq();
+            __HAL_TIM_SET_COUNTER(&htim4, 0);
+            encoderPosition = 0;
+            if (primask == 0) __enable_irq();
+            
+              holdingRegisters[SP_Pos_Count - 2000] = 0;
+            }
     // Обновляем данные энкодера
     UpdateEncoderData();
        
@@ -703,6 +758,9 @@ void StartTask03(void *argument)
   /* Infinite loop */
   for(;;)
   {
+    debug_task_active = 3;  // Идентификатор задачи
+    HAL_IWDG_Refresh(&hiwdg);
+
     // Проверяем флаг запроса импульса
     if (pulseRequested) {
         GeneratePulse();
