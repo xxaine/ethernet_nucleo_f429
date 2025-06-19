@@ -163,8 +163,14 @@ void HAL_ETH_ErrorCallback(ETH_HandleTypeDef *handlerEth)
   if((HAL_ETH_GetDMAError(handlerEth) & ETH_DMASR_RBUS) == ETH_DMASR_RBUS)
   {
      osSemaphoreRelease(RxPktSemaphore);
+     __HAL_RCC_ETH_CLK_DISABLE();
+     HAL_Delay(10);
      HAL_ETH_DeInit(handlerEth);
+     __HAL_RCC_ETH_CLK_ENABLE();
+     HAL_Delay(10);
      HAL_ETH_Init(handlerEth);
+
+     HAL_ETH_Start_IT(handlerEth);
   }
 }
 

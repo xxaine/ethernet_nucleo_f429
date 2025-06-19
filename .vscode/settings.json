@@ -9,6 +9,7 @@
         "xutility": "c",
         "lwip.h": "c",
         "type_traits": "c",
-        "modbusregisters.h": "c"
+        "modbusregisters.h": "c",
+        "timestamp.h": "c"
     }
 }

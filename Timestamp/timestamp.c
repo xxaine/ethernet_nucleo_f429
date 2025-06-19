@@ -71,8 +71,8 @@ void Sensor_Init(void) {
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
     
     // Установка максимального приоритета прерывания
-    HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+    //HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
+    //HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 }
 
 // Функция округления до ближайшего шага
@@ -81,7 +81,7 @@ static uint32_t round_to_step(uint32_t value, uint32_t step) {
 }
 
 // Функция проверки и корректировки параметров
-static void validate_pulse_params(PulseParams_t* params) {
+void validate_pulse_params(PulseParams_t* params) {
     // Получаем значения из регистров Modbus
     uint32_t delay = holdingRegisters[SP_Delay_Before - 2000] * 100; // Convert from 0.1ms to us
     uint32_t duration = holdingRegisters[SP_Pulse_Lenght - 2000] * 10; // Convert from 0.01ms to us

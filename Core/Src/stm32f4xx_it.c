@@ -212,6 +212,8 @@ void TIM4_IRQHandler(void)
 void EXTI15_10_IRQHandler(void)
 {
   /* USER CODE BEGIN EXTI15_10_IRQn 0 */
+  // Обновляем параметры импульса из Modbus-регистров
+  validate_pulse_params(&pulseParams);
   if (__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_15) != RESET)
   {
     __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_15);
@@ -232,6 +234,8 @@ void EXTI15_10_IRQHandler(void)
         // Обновляем счетчик
         if (holdingRegisters[SP_Pos_Count - 2000] < UINT16_MAX) {
           holdingRegisters[SP_Pos_Count - 2000]++;
+        } else {
+          holdingRegisters[SP_Pos_Count - 2000] = 0;
         }
         inputRegisters[FBK_Pulse_Count - 1000] = holdingRegisters[SP_Pos_Count - 2000];
       }
@@ -250,6 +254,8 @@ void EXTI15_10_IRQHandler(void)
         // Обновляем счетчик
         if (holdingRegisters[SP_Pos_Count - 2000] < UINT16_MAX) {
           holdingRegisters[SP_Pos_Count - 2000]++;
+        } else {
+          holdingRegisters[SP_Pos_Count - 2000] = 0;
         }
         inputRegisters[FBK_Pulse_Count - 1000] = holdingRegisters[SP_Pos_Count - 2000];
       }
