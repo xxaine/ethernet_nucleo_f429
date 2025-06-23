@@ -214,23 +214,31 @@ void EXTI15_10_IRQHandler(void)
   /* USER CODE BEGIN EXTI15_10_IRQn 0 */
   // Обновляем параметры импульса из Modbus-регистров
   validate_pulse_params(&pulseParams);
+  inputRegisters[FBK_Pulse_On - 1000] = holdingRegisters[SP_Pulse_On - 2000];
+  if (holdingRegisters[SP_Pulse_On - 2000] != 1) {
+    // Генерация запрещена
+    return;
+  }
   if (__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_15) != RESET)
   {
     __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_15);
-    
+    uint32_t delay_count = 0;
     // Прямая обработка прерывания без HAL
     if (holdingRegisters[SP_Front_Type - 2000] == 0) {
       // Восходящий фронт
       if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == GPIO_PIN_SET) {
-        // Немедленная генерация импульса
+        // Задержка перед импульсом
+        __HAL_TIM_SET_COUNTER(&htim2, 0);
+        while (__HAL_TIM_GET_COUNTER(&htim2) < pulseParams.delay_us) {
+          delay_count = __HAL_TIM_GET_COUNTER(&htim2);
+          inputRegisters[FBK_Delay_Count - 1000] = delay_count;
+        }
+        inputRegisters[FBK_Delay_Before - 1000] = delay_count;
+        // Генерация импульса
         HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
-        
-        // Используем TIM2 для точной задержки
         __HAL_TIM_SET_COUNTER(&htim2, 0);
         while (__HAL_TIM_GET_COUNTER(&htim2) < pulseParams.duration_us);
-        
         HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
-        
         // Обновляем счетчик
         if (holdingRegisters[SP_Pos_Count - 2000] < UINT16_MAX) {
           holdingRegisters[SP_Pos_Count - 2000]++;
@@ -240,17 +248,19 @@ void EXTI15_10_IRQHandler(void)
         inputRegisters[FBK_Pulse_Count - 1000] = holdingRegisters[SP_Pos_Count - 2000];
       }
     } else {
-      // Падающий фронт
       if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_15) == GPIO_PIN_RESET) {
-        // Немедленная генерация импульса
+        // Задержка перед импульсом
+        __HAL_TIM_SET_COUNTER(&htim2, 0);
+        while (__HAL_TIM_GET_COUNTER(&htim2) < pulseParams.delay_us) {
+          delay_count = __HAL_TIM_GET_COUNTER(&htim2);
+          inputRegisters[FBK_Delay_Count - 1000] = delay_count;
+        }
+        inputRegisters[FBK_Delay_Before - 1000] = delay_count;
+        // Генерация импульса
         HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_SET);
-        
-        // Используем TIM2 для точной задержки
         __HAL_TIM_SET_COUNTER(&htim2, 0);
         while (__HAL_TIM_GET_COUNTER(&htim2) < pulseParams.duration_us);
-        
         HAL_GPIO_WritePin(GPIOC, GPIO_PIN_13, GPIO_PIN_RESET);
-        
         // Обновляем счетчик
         if (holdingRegisters[SP_Pos_Count - 2000] < UINT16_MAX) {
           holdingRegisters[SP_Pos_Count - 2000]++;

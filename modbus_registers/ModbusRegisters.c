@@ -22,12 +22,14 @@ void ModbusRegisters_Init(void) {
     holdingRegisters[SP_Front_Type - 2000] = 0;       // Передний фронт
     holdingRegisters[SP_Power_27_V - 2000] = 1;       // 27V выключен
     holdingRegisters[SP_Pos_Count_Max - 2000] = encoderPulsesPerRevolution; // 2500 имп/об
+    holdingRegisters[SP_Pulse_On - 2000] = 1; // Разрешить генерацию импульсов по умолчанию
     
     // Инициализация input регистров
     inputRegisters[FBK_Delay_Before - 1000] = holdingRegisters[SP_Delay_Before - 2000];
     inputRegisters[FBK_Pulse_Lenght - 1000] = holdingRegisters[SP_Pulse_Lenght - 2000];
     inputRegisters[FBK_Front_Type - 1000] = holdingRegisters[SP_Front_Type - 2000];
     inputRegisters[FBK_Power_27_V - 1000] = holdingRegisters[SP_Power_27_V - 2000];
+    inputRegisters[FBK_Pulse_On - 1000] = holdingRegisters[SP_Pulse_On - 2000];
     inputRegisters[FBK_Pos_Count_Max - 1000] = holdingRegisters[SP_Pos_Count_Max - 2000];
     inputRegisters[FBK_Pos_Count - 1000] = 0;
     inputRegisters[FBK_Pulse_Count - 1000] = 0;
@@ -69,9 +71,27 @@ void Modbus_SetHoldingRegister(HoldingRegisters reg, uint16_t value) {
             case SP_Pulse_Lenght:
             case SP_Front_Type:
             case SP_Pulse_On:
+
+             holdingRegisters[reg - 2000] = value;
+             inputRegisters[reg - 1000] = value;
+            if (value == 0) {
+                HAL_NVIC_DisableIRQ(EXTI15_10_IRQn);
+                inputRegisters[FBK_Pulse_On - 1000] = 0;
+                inputRegisters[FBK_Pulse_Count - 1000] = 0;
+            } else {
+                HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+                inputRegisters[FBK_Pulse_On - 1000] = 1;
+            }
+            break;
             case SP_POS_Set:
+                // Реализация: по фронту 0->1 записать encoderPosition в SP_Pos_Count
+                static uint16_t prev_pos_set = 0;
+                if (prev_pos_set == 0 && value == 1) {
+                    holdingRegisters[SP_Pos_Count - 2000] = (uint16_t)(encoderPosition & 0xFFFF);
+                }
+                prev_pos_set = value;
                 holdingRegisters[reg - 2000] = value;
-                inputRegisters[reg - 1000] = value; // Обновляем соответствующий input регистр
+                inputRegisters[reg - 1000] = value;
                 break;
                 
             default:

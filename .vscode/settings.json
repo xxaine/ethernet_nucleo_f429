@@ -10,6 +10,7 @@
         "lwip.h": "c",
         "type_traits": "c",
         "modbusregisters.h": "c",
-        "timestamp.h": "c"
+        "timestamp.h": "c",
+        "modbus.h": "c"
     }
 }

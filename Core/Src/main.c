@@ -591,9 +591,14 @@ void UpdateEncoderData(void)
         if (encoderSpeed > MAX_ENCODER_SPEED) encoderSpeed = MAX_ENCODER_SPEED;
         if (encoderSpeed < -MAX_ENCODER_SPEED) encoderSpeed = -MAX_ENCODER_SPEED;
         
+        // Вычисляем угол в десятых градуса
+        int32_t angle = ((encoderPosition % encoderPulsesPerRevolution) * 3600) / encoderPulsesPerRevolution;
+        if (angle < 0) angle += 3600; // Корректировка для отрицательных значений
+        inputRegisters[FBK_Pos - 1000] = (uint16_t)angle;
+        
         // Обновляем регистры Modbus
         inputRegisters[FBK_Pos_Count - 1000] = (uint16_t)(encoderPosition & 0xFFFF);
-        inputRegisters[FBK_Pos_Count_Max - 1000] = (uint16_t)((encoderPosition >> 16) & 0xFFFF);
+        inputRegisters[FBK_Pos_Count_Max - 1000] = (uint16_t)encoderPulsesPerRevolution;
         inputRegisters[FBK_Pos - 1000] = (uint16_t)(encoderSpeed & 0xFFFF);
         inputRegisters[FBK_Direction - 1000] = (uint16_t)(encoderDirection > 0 ? 1 : 0);
         
