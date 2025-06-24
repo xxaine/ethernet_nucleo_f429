@@ -69,20 +69,23 @@ void Modbus_SetHoldingRegister(HoldingRegisters reg, uint16_t value) {
                 
             case SP_Delay_Before:
             case SP_Pulse_Lenght:
-            case SP_Front_Type:
             case SP_Pulse_On:
-
-             holdingRegisters[reg - 2000] = value;
-             inputRegisters[reg - 1000] = value;
-            if (value == 0) {
-                HAL_NVIC_DisableIRQ(EXTI15_10_IRQn);
-                inputRegisters[FBK_Pulse_On - 1000] = 0;
-                inputRegisters[FBK_Pulse_Count - 1000] = 0;
-            } else {
-                HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
-                inputRegisters[FBK_Pulse_On - 1000] = 1;
-            }
-            break;
+                holdingRegisters[reg - 2000] = value;
+                inputRegisters[reg - 1000] = value;
+                if (value == 0) {
+                    HAL_NVIC_DisableIRQ(EXTI15_10_IRQn);
+                    inputRegisters[FBK_Pulse_On - 1000] = 0;
+                    inputRegisters[FBK_Pulse_Count - 1000] = 0;
+                } else {
+                    HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+                    inputRegisters[FBK_Pulse_On - 1000] = 1;
+                }
+                break;
+            case SP_Front_Type:
+                holdingRegisters[reg - 2000] = value;
+                inputRegisters[reg - 1000] = value;
+                Sensor_Init(); // Повторная инициализация пина только при изменении фронта
+                break;
             case SP_POS_Set:
                 // Реализация: по фронту 0->1 записать encoderPosition в SP_Pos_Count
                 static uint16_t prev_pos_set = 0;
