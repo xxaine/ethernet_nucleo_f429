@@ -1225,7 +1225,7 @@ int16_t getRxBuffer(modbusHandler_t *modH) {
  * @ingroup modH Modbus handler
  */
 uint8_t validateRequest(modbusHandler_t *modH) {
-	// Check message CRC vs calculated CRC
+    // Check message CRC vs calculated CRC
     #if ENABLE_TCP ==1
     if(modH->xTypeHW != TCP_HW)
     {
@@ -1263,15 +1263,25 @@ uint8_t validateRequest(modbusHandler_t *modH) {
             return EXC_ADDR_RANGE;
         }
     }
-    // For Holding Registers (Functions 03, 06, 16)
+    // For Holding Registers (Functions 03, 06, 16) and Coils (05, 15)
     else {
-        if (u16AdRegs < 2000 || u16AdRegs + u16NRegs > 2000 + HOLDING_REGISTERS_COUNT) {
-            return EXC_ADDR_RANGE;
+        if (modH->u8Buffer[FUNC] == MB_FC_WRITE_REGISTER) { // 0x06
+            // Проверяем только адрес регистра
+            if (u16AdRegs < 2000 || u16AdRegs >= 2000 + HOLDING_REGISTERS_COUNT) {
+                return EXC_ADDR_RANGE;
+            }
+        } else if (modH->u8Buffer[FUNC] == MB_FC_WRITE_COIL) { // 0x05
+            // Проверяем только адрес койла (можно добавить аналогичную проверку диапазона, если нужно)
+            // Например, если у вас 2000 койлов:
+            // if (u16AdRegs < 0 || u16AdRegs >= COILS_COUNT) { return EXC_ADDR_RANGE; }
+        } else {
+            if (u16AdRegs < 2000 || u16AdRegs + u16NRegs > 2000 + HOLDING_REGISTERS_COUNT) {
+                return EXC_ADDR_RANGE;
+            }
         }
     }
 
     return 0; // OK, no exception
-
 }
 
 /**
