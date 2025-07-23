@@ -621,35 +621,39 @@ void UpdateEncoderData(void)
 void StartDefaultTask(void *argument)
 {
   /* init code for LWIP */
-  MX_LWIP_Init();
+  //MX_LWIP_Init();
   /* USER CODE BEGIN 5 */
   /* Modbus TCP initialization */
   // Инициализация регистров Modbus
   ModbusRegisters_Init();
+  Modbus_SetHoldingRegister(SP_Power_27_V, 1U);
+  Modbus_SetHoldingRegister(SP_Pulse_On, 1U);
+  Modbus_SetHoldingRegister(SP_Pulse_Lenght, 2200U);
+  Modbus_SetHoldingRegister(SP_Delay_Before, 50U);
   
   // Инициализация Modbus handler
-  ModbusH.uModbusType = MB_SLAVE;  // Режим slave
-  ModbusH.u8id = 1;  // ID устройства (адрес slave)
-  ModbusH.u16timeOut = 2000;  // Увеличенный таймаут до 2000 мс
-  ModbusH.u16regs = holdingRegisters;  // Указатель на holding registers
-  ModbusH.u16regsize = HOLDING_REGISTERS_COUNT;  // Размер holding registers
-  ModbusH.xTypeHW = TCP_HW;  // TCP hardware
-  ModbusH.uTcpPort = 502;   // Стандартный порт Modbus TCP
+ // ModbusH.uModbusType = MB_SLAVE;  // Режим slave
+ // ModbusH.u8id = 1;  // ID устройства (адрес slave)
+ // ModbusH.u16timeOut = 2000;  // Увеличенный таймаут до 2000 мс
+ // ModbusH.u16regs = holdingRegisters;  // Указатель на holding registers
+ // ModbusH.u16regsize = HOLDING_REGISTERS_COUNT;  // Размер holding registers
+ // ModbusH.xTypeHW = TCP_HW;  // TCP hardware
+ // ModbusH.uTcpPort = 502;   // Стандартный порт Modbus TCP
 
   // Даем время для инициализации сети
-  osDelay(1000);
+ // osDelay(1000);
 
   //Initialize Modbus library
-  ModbusInit(&ModbusH);
+  //ModbusInit(&ModbusH);
   
   //Start capturing traffic on serial Port and initialize counters
-  ModbusStart(&ModbusH);
+ // ModbusStart(&ModbusH);
   
   /* Infinite loop */
   for(;;)
   {
     // Улучшенная логика обработки ошибок
-    if (ModbusH.i8lastError != 0) {
+    /*if (ModbusH.i8lastError != 0) {
         // Закрываем все существующие соединения
         for(int i = 0; i < NUMBERTCPCONN; i++) {
             if(ModbusH.newconns[i].conn != NULL) {
@@ -670,7 +674,7 @@ void StartDefaultTask(void *argument)
         
         // Сбрасываем счетчик ошибок
         ModbusH.i8lastError = 0;
-    }
+    }*/
     osDelay(10);
   }
   /* USER CODE END 5 */
@@ -694,13 +698,13 @@ void StartTask02(void *argument)
   encoderPulsesPerRevolution = 2500; // Значение по умолчанию
   
   // Запускаем таймер энкодера
-  HAL_TIM_Encoder_Start(&htim4, TIM_CHANNEL_ALL);
+  //HAL_TIM_Encoder_Start(&htim4, TIM_CHANNEL_ALL);
   
   /* Infinite loop */
   for(;;)
   {
     // Обновляем данные энкодера
-    UpdateEncoderData();
+   // UpdateEncoderData();
        
     // Задержка между обновлениями
     osDelay(ENCODER_UPDATE_PERIOD_MS);
@@ -723,14 +727,14 @@ void StartTask03(void *argument)
   Sensor_Init();
   
   // Инициализация значений по умолчанию
-  holdingRegisters[SP_Delay_Before - 2000] = 0;     // Задержка 0 мс
-  holdingRegisters[SP_Pulse_Lenght - 2000] = 2000;  // Длительность 20 мс
-  holdingRegisters[SP_Front_Type - 2000] = 0;       // Передний фронт
+  //holdingRegisters[SP_Delay_Before - 2000] = 0;     // Задержка 0 мс
+  //holdingRegisters[SP_Pulse_Lenght - 2000] = 2000;  // Длительность 20 мс
+  //holdingRegisters[SP_Front_Type - 2000] = 0;       // Передний фронт
   
   // Обновляем регистры обратной связи
-  inputRegisters[FBK_Delay_Before - 1000] = holdingRegisters[SP_Delay_Before - 2000];
-  inputRegisters[FBK_Pulse_Lenght - 1000] = holdingRegisters[SP_Pulse_Lenght - 2000];
-  inputRegisters[FBK_Front_Type - 1000] = holdingRegisters[SP_Front_Type - 2000];
+  //inputRegisters[FBK_Delay_Before - 1000] = holdingRegisters[SP_Delay_Before - 2000];
+  //inputRegisters[FBK_Pulse_Lenght - 1000] = holdingRegisters[SP_Pulse_Lenght - 2000];
+  //inputRegisters[FBK_Front_Type - 1000] = holdingRegisters[SP_Front_Type - 2000];
   
   /* Infinite loop */
   for(;;)
