@@ -217,6 +217,7 @@ void EXTI15_10_IRQHandler(void)
   inputRegisters[FBK_Pulse_On - 1000] = holdingRegisters[SP_Pulse_On - 2000];
   if (holdingRegisters[SP_Pulse_On - 2000] != 1) {
     // Генерация запрещена
+    __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_15);
     return;
   }
   if (__HAL_GPIO_EXTI_GET_IT(GPIO_PIN_15) != RESET)
