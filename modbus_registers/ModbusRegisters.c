@@ -67,13 +67,13 @@ void Modbus_SetHoldingRegister(HoldingRegisters reg, uint16_t value) {
                 }
                 break;
                 
-            case SP_Delay_Before:
-            case SP_Pulse_Lenght:
+            
             case SP_Pulse_On:
                 holdingRegisters[reg - 2000] = value;
                 inputRegisters[reg - 1000] = value;
                 if (value == 0) {
                     HAL_NVIC_DisableIRQ(EXTI15_10_IRQn);
+                    __HAL_GPIO_EXTI_CLEAR_IT(GPIO_PIN_15); // Очистить pending bit
                     inputRegisters[FBK_Pulse_On - 1000] = 0;
                     inputRegisters[FBK_Pulse_Count - 1000] = 0;
                 } else {
@@ -81,6 +81,12 @@ void Modbus_SetHoldingRegister(HoldingRegisters reg, uint16_t value) {
                     inputRegisters[FBK_Pulse_On - 1000] = 1;
                 }
                 break;
+            case SP_Delay_Before:
+            case SP_Pulse_Lenght: 
+            holdingRegisters[reg - 2000] = value;
+                inputRegisters[reg - 1000] = value;
+                // Не трогаем EXTI15_10_IRQn
+                break;   
             case SP_Front_Type:
                 holdingRegisters[reg - 2000] = value;
                 inputRegisters[reg - 1000] = value;
